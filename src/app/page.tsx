@@ -1,3 +1,5 @@
+'use client';
+
 import { ArrowRight, Printer, QrCode, Zap } from 'lucide-react';
 import Link from 'next/link';
 
