@@ -29,25 +29,33 @@ function AgentStatus({ agents }: { agents: any[] }) {
 export default function PlatformAdminUI({ initialShops }: { initialShops: any[] }) {
   const [shops, setShops] = useState(initialShops);
   const [newShopName, setNewShopName] = useState('');
+  const [newShopEmail, setNewShopEmail] = useState('');
+  const [newShopPassword, setNewShopPassword] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
   const [qrModal, setQrModal] = useState<{ open: boolean; url: string; name: string; shopUrl: string } | null>(null);
 
   const handleCreateShop = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newShopName.trim()) return;
+    if (!newShopName.trim() || !newShopEmail.trim() || !newShopPassword.trim()) return;
     setIsCreating(true);
     setError('');
     try {
       const res = await fetch('/api/admin/shops', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newShopName.trim() }),
+        body: JSON.stringify({ 
+          name: newShopName.trim(),
+          ownerEmail: newShopEmail.trim(),
+          ownerPassword: newShopPassword.trim()
+        }),
       });
       const data = await res.json();
       if (data.success) {
         setShops([data.shop, ...shops]);
         setNewShopName('');
+        setNewShopEmail('');
+        setNewShopPassword('');
       } else {
         setError(data.error || 'Failed to create shop');
       }
@@ -110,6 +118,28 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                   required
                 />
               </div>
+              <div className="field">
+                <label className="label">Owner Email</label>
+                <input
+                  type="email"
+                  className="input"
+                  value={newShopEmail}
+                  onChange={(e) => setNewShopEmail(e.target.value)}
+                  placeholder="e.g. ramesh@gmail.com"
+                  required
+                />
+              </div>
+              <div className="field">
+                <label className="label">Owner Password</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={newShopPassword}
+                  onChange={(e) => setNewShopPassword(e.target.value)}
+                  placeholder="e.g. temp123"
+                  required
+                />
+              </div>
               {error && (
                 <div className="flex items-center gap-2" style={{ color: 'var(--danger)', fontSize: '0.84rem' }}>
                   <AlertCircle size={14} /> {error}
@@ -137,6 +167,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                   <thead>
                     <tr>
                       <th>Shop</th>
+                      <th>Owner Email</th>
                       <th>Status</th>
                       <th>Orders</th>
                       <th>Agent</th>
@@ -152,6 +183,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                             <div className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>/s/{shop.slug}</div>
                           </div>
                         </td>
+                        <td><span className="text-sm text-muted">{shop.user?.email || 'None'}</span></td>
                         <td><StatusBadge status={shop.status} /></td>
                         <td><span className="text-sm">{shop._count?.orders ?? 0}</span></td>
                         <td><AgentStatus agents={shop.agents} /></td>

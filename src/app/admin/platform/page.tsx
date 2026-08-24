@@ -8,7 +8,10 @@ export default async function PlatformAdminPage() {
       _count: {
         select: { orders: true }
       },
-      agents: true
+      agents: true,
+      user: {
+        select: { email: true }
+      }
     }
   });
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
+import { hashPassword } from '@/lib/passwords';
 
 function slugify(text: string) {
   return text
@@ -12,8 +14,6 @@ function slugify(text: string) {
     .replace(/-+$/, '');            // Trim - from end of text
 }
 
-import { getSession } from '@/lib/auth';
-
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
@@ -21,10 +21,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { name } = await req.json();
+    const { name, ownerEmail, ownerPassword } = await req.json();
 
-    if (!name) {
-      return NextResponse.json({ error: 'Shop name is required' }, { status: 400 });
+    if (!name || !ownerEmail || !ownerPassword) {
+      return NextResponse.json({ error: 'Shop name, owner email, and password are required' }, { status: 400 });
+    }
+
+    // Check if user email already exists
+    const existingUser = await prisma.user.findUnique({ where: { email: ownerEmail } });
+    if (existingUser) {
+      return NextResponse.json({ error: 'Email is already registered' }, { status: 400 });
     }
 
     // Generate unique slug
@@ -37,6 +43,8 @@ export async function POST(req: NextRequest) {
       counter++;
     }
 
+    const hashedPassword = await hashPassword(ownerPassword);
+
     const shop = await prisma.shop.create({
       data: {
         name,
@@ -47,13 +55,23 @@ export async function POST(req: NextRequest) {
             { mode: 'BW', minPages: 1, pricePerPage: 5.0 },
             { mode: 'COLOR', minPages: 1, pricePerPage: 10.0 }
           ]
+        },
+        user: {
+          create: {
+            email: ownerEmail,
+            password: hashedPassword,
+            role: 'SHOP_OWNER'
+          }
         }
       },
       include: {
         _count: {
           select: { orders: true }
         },
-        agents: true
+        agents: true,
+        user: {
+          select: { email: true }
+        }
       }
     });
 
