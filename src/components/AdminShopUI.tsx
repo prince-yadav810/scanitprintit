@@ -26,7 +26,7 @@ function updateOrderStatus(orderId: string, status: string) {
   });
 }
 
-export default function AdminShopUI({ shop }: { shop: any }) {
+export default function AdminShopUI({ shop, userRole }: { shop: any; userRole?: string }) {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [orders, setOrders] = useState(shop.orders);
@@ -69,9 +69,11 @@ export default function AdminShopUI({ shop }: { shop: any }) {
       <nav className="topbar">
         <div className="container">
           <div className="topbar-inner">
-            <a href="/admin" className="btn-back">
-              <ArrowLeft size={16} /> Back to Platform Admin
-            </a>
+            {userRole === 'PLATFORM_ADMIN' && (
+              <a href="/admin" className="btn-back">
+                <ArrowLeft size={16} /> Back to Platform Admin
+              </a>
+            )}
             <div className="topbar-breadcrumb">
               <span>/</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{shop.name}</span>
