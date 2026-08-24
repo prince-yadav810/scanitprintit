@@ -7,7 +7,7 @@ const http     = require('http');
 const ptp      = require('pdf-to-printer');
 
 // ─── Config ────────────────────────────────────────────────────────────────
-const API_BASE    = process.env.PRINTDESK_API || 'https://scanitprintit.vercel.app/api';
+const API_BASE    = process.env.PRINTDESK_API || 'https://www.scanitprintit.in/api';
 const CONFIG_PATH = path.join(os.homedir(), '.printdesk_agent.json');
 const POLL_MS     = 5000;
 const VERSION     = '1.0.0';
