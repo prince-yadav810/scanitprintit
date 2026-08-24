@@ -35,7 +35,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://scanitprintit.vercel.app';
+    // Force override the env variable if it points to the broken domain
+    let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://scanitprintit.vercel.app';
+    if (appUrl.includes('scanitprintit.in')) {
+      appUrl = 'https://scanitprintit.vercel.app';
+    }
 
     const cfPayload = {
       order_id:       `PD-${order.orderNumber}-${Date.now()}`,
