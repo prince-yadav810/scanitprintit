@@ -1,0 +1,43 @@
+{
+  "name": "scanitprintit-agent",
+  "version": "1.0.0",
+  "description": "ScanItPrintIt Shop Owner Dashboard & Print Agent",
+  "main": "src/main/index.js",
+  "author": "ScanItPrintIt",
+  "license": "ISC",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder --win --x64",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.3.9",
+    "node-fetch": "^2.7.0",
+    "pdf-to-printer": "^5.8.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "in.scanitprintit.agent",
+    "productName": "ScanItPrintIt Agent",
+    "copyright": "Copyright © 2026 ScanItPrintIt",
+    "win": {
+      "target": "nsis",
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "src/**/*",
+      "resources/**/*"
+    ]
+  }
+}

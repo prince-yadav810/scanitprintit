@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScanItPrintIt Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f0f10; --bg-card: #18181b; --bg-subtle: #1f1f23; --bg-hover: #27272a;
+      --border: #2a2a2e; --border-subtle: #222225;
+      --accent: #6366f1; --accent-light: rgba(99,102,241,0.15);
+      --success: #22c55e; --success-bg: rgba(34,197,94,0.1);
+      --warning: #f59e0b; --warning-bg: rgba(245,158,11,0.1);
+      --danger: #ef4444; --danger-bg: rgba(239,68,68,0.1);
+      --info: #38bdf8; --info-bg: rgba(56,189,248,0.1);
+      --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+      --text-primary: #f4f4f5; --text-secondary: #a1a1aa; --text-muted: #52525b;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --radius: 10px; --radius-sm: 6px;
+    }
+    body { font-family: var(--font); background: var(--bg); color: var(--text-primary); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; overflow: hidden; height: 100vh; }
+    ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    
+    /* ── Layout ── */
+    #app { display: flex; height: 100vh; flex-direction: column; }
+    .titlebar { height: 38px; background: var(--bg-card); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 8px; -webkit-app-region: drag; flex-shrink: 0; }
+    .titlebar-logo { height: 18px; -webkit-app-region: no-drag; }
+    .titlebar-title { font-size: 12px; font-weight: 500; color: var(--text-secondary); flex: 1; }
+    .status-dots { display: flex; gap: 6px; align-items: center; -webkit-app-region: no-drag; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; position: relative; }
+    .dot.green { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .dot.red { background: var(--danger); }
+    .dot.yellow { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
+    .dot-label { font-size: 11px; color: var(--text-secondary); }
+    .separator { width: 1px; height: 14px; background: var(--border); margin: 0 4px; }
+    
+    /* ── Sidebar ── */
+    .layout { display: flex; flex: 1; overflow: hidden; }
+    .sidebar { width: 200px; background: var(--bg-card); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 12px 0; flex-shrink: 0; }
+    .sidebar-shop { padding: 0 14px 12px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+    .sidebar-shop-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 4px; }
+    .sidebar-shop-name { font-weight: 600; font-size: 13px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; margin: 1px 8px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--text-secondary); transition: all 0.15s; }
+    .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+    .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+    .nav-badge { margin-left: auto; background: var(--danger); color: white; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 20px; }
+    .sidebar-bottom { margin-top: auto; padding: 8px; }
+    
+    /* ── Main Content ── */
+    .main { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+    .page { display: none; } .page.active { display: contents; }
+    
+    /* ── Cards ── */
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+    .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600; margin-bottom: 12px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; position: relative; overflow: hidden; }
+    .stat-card.danger { border-color: var(--danger); background: linear-gradient(135deg, var(--danger-bg), var(--bg-card)); }
+    .stat-label { font-size: 11px; color: var(--text-muted); font-weight: 500; margin-bottom: 8px; }
+    .stat-value { font-size: 26px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.03em; }
+    .stat-card.danger .stat-value { color: var(--danger); }
+    .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    
+    /* ── Queue ── */
+    .queue-list { display: flex; flex-direction: column; gap: 8px; }
+    .queue-item { background: var(--bg-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; align-items: center; gap: 12px; transition: border-color 0.2s; }
+    .queue-item.printing { border-color: var(--accent); animation: pulse-border 2s infinite; }
+    .queue-item.failed { border-color: var(--danger); }
+    .queue-item.simulated { border-color: var(--purple); }
+    @keyframes pulse-border { 0%,100% { border-color: var(--accent); } 50% { border-color: var(--accent-hover,#818cf8); opacity: 0.7; } }
+    .queue-status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .queue-info { flex: 1; min-width: 0; }
+    .queue-order { font-weight: 600; font-size: 12px; color: var(--text-primary); }
+    .queue-file { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .queue-meta { display: flex; gap: 8px; align-items: center; }
+    .queue-chip { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 20px; }
+    .chip-bw { background: rgba(161,161,170,0.15); color: var(--text-secondary); }
+    .chip-color { background: rgba(99,102,241,0.15); color: var(--accent); }
+    .chip-sim { background: var(--purple-bg); color: var(--purple); }
+    .queue-time { font-size: 11px; color: var(--text-muted); }
+    .queue-actions { display: flex; gap: 6px; }
+    .btn { padding: 5px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-subtle); color: var(--text-secondary); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: var(--font); }
+    .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .btn-danger { border-color: var(--danger); color: var(--danger); } .btn-danger:hover { background: var(--danger-bg); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: white; } .btn-primary:hover { background: #4f46e5; }
+    .btn-sm { padding: 3px 10px; font-size: 11px; }
+    .empty-state { text-align: center; padding: 32px; color: var(--text-muted); font-size: 13px; }
+    .empty-icon { font-size: 28px; margin-bottom: 8px; }
+    
+    /* ── Order Table ── */
+    table { width: 100%; border-collapse: collapse; }
+    thead th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    tbody tr { border-bottom: 1px solid var(--border-subtle); transition: background 0.1s; cursor: pointer; }
+    tbody tr:hover { background: var(--bg-hover); }
+    tbody tr.danger-row { background: rgba(239,68,68,0.04); }
+    tbody td { padding: 10px 12px; font-size: 12px; color: var(--text-secondary); vertical-align: middle; }
+    tbody td.primary { color: var(--text-primary); font-weight: 500; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
+    .badge-success { background: var(--success-bg); color: var(--success); }
+    .badge-warning { background: var(--warning-bg); color: var(--warning); }
+    .badge-danger { background: var(--danger-bg); color: var(--danger); }
+    .badge-info { background: var(--info-bg); color: var(--info); }
+    .badge-muted { background: rgba(82,82,91,0.2); color: var(--text-muted); }
+    .badge-purple { background: var(--purple-bg); color: var(--purple); }
+    .badge-accent { background: var(--accent-light); color: var(--accent); }
+    
+    /* ── Chart ── */
+    .chart-container { height: 160px; display: flex; align-items: flex-end; gap: 3px; padding: 0 4px; }
+    .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+    .chart-bar { width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.3s ease; opacity: 0.8; }
+    .chart-bar:hover { opacity: 1; }
+    .chart-bar.today { background: var(--success); }
+    .chart-label { font-size: 9px; color: var(--text-muted); white-space: nowrap; }
+    
+    /* ── Settings ── */
+    .settings-section { display: flex; flex-direction: column; gap: 14px; }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg-subtle); border-radius: var(--radius-sm); }
+    .settings-label { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+    .settings-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .toggle { position: relative; width: 36px; height: 20px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 20px; cursor: pointer; transition: 0.2s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: 0.2s; }
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+    input[type=text], input[type=number], select { background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; color: var(--text-primary); font-family: var(--font); font-size: 13px; outline: none; width: 100%; }
+    input[type=text]:focus, select:focus { border-color: var(--accent); }
+    select option { background: var(--bg-card); }
+    
+    /* ── Pairing screen ── */
+    .pair-screen { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .pair-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 40px; width: 360px; text-align: center; }
+    .pair-logo { height: 36px; margin-bottom: 24px; }
+    .pair-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .pair-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; line-height: 1.6; }
+    .pair-input { font-size: 22px; letter-spacing: 0.3em; text-align: center; font-weight: 700; padding: 12px; }
+    .pair-hint { font-size: 11px; color: var(--text-muted); margin-top: 8px; margin-bottom: 20px; }
+    .btn-full { width: 100%; padding: 10px; font-size: 14px; }
+    .error-msg { background: var(--danger-bg); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 12px; color: var(--danger); margin-top: 12px; }
+    
+    /* ── Misc ── */
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .section-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+    .offline-banner { background: var(--warning-bg); border: 1px solid rgba(245,158,11,0.3); border-radius: var(--radius-sm); padding: 8px 14px; font-size: 12px; color: var(--warning); display: flex; align-items: center; gap: 8px; }
+    .qr-preview { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: inline-block; }
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; }
+    .filters input, .filters select { width: auto; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Pairing screen -->
+  <div id="pair-screen" class="pair-screen" style="display:none;">
+    <div class="pair-card">
+      <img src="../../resources/logo.png" alt="ScanItPrintIt" class="pair-logo" onerror="this.style.display='none'">
+      <div class="pair-title">Pair this Device</div>
+      <div class="pair-sub">Generate a pairing code from your Shop Dashboard at <strong>scanitprintit.in</strong>, then enter it below.</div>
+      <input type="text" id="pair-input" class="pair-input" placeholder="000000" maxlength="6" />
+      <div class="pair-hint">Enter the 6-digit code from your dashboard</div>
+      <button class="btn btn-primary btn-full" id="pair-btn" onclick="doPair()">Pair Device</button>
+      <div id="pair-error" class="error-msg" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="main-app" style="display:none; flex-direction:column; height:100vh;">
+    <!-- Titlebar -->
+    <div class="titlebar">
+      <img src="../../resources/logo.png" alt="" class="titlebar-logo" onerror="this.style.display='none'">
+      <span class="titlebar-title" id="titlebar-shop">ScanItPrintIt Agent</span>
+      <div class="status-dots">
+        <div class="dot" id="dot-internet" title="Internet"></div>
+        <span class="dot-label" id="label-internet">Connecting...</span>
+        <div class="separator"></div>
+        <div class="dot" id="dot-printer" title="Printer"></div>
+        <span class="dot-label" id="label-printer">Checking...</span>
+      </div>
+    </div>
+
+    <!-- Offline banner -->
+    <div id="offline-banner" class="offline-banner" style="display:none; margin: 8px 16px 0;">
+      ⚠️ Offline — showing cached data from <span id="cache-age"></span>
+    </div>
+
+    <div class="layout">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-shop">
+          <div class="sidebar-shop-label">Shop</div>
+          <div class="sidebar-shop-name" id="sidebar-shop-name">Loading...</div>
+        </div>
+        <nav>
+          <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+            <span class="nav-icon">📊</span> Dashboard
+            <span class="nav-badge" id="nav-badge-failed" style="display:none;">0</span>
+          </div>
+          <div class="nav-item" data-page="queue" onclick="navigate('queue')">
+            <span class="nav-icon">🖨️</span> Print Queue
+            <span class="nav-badge" id="nav-badge-queue" style="display:none;">0</span>
+          </div>
+          <div class="nav-item" data-page="history" onclick="navigate('history')">
+            <span class="nav-icon">📋</span> History
+          </div>
+          <div class="nav-item" data-page="settings" onclick="navigate('settings')">
+            <span class="nav-icon">⚙️</span> Settings
+          </div>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="nav-item" style="font-size:11px; color: var(--text-muted);" id="agent-status-label">
+            <span class="nav-icon">🟢</span> Agent Running
+          </div>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="main" id="main-content">
+
+        <!-- DASHBOARD PAGE -->
+        <div class="page active" id="page-dashboard">
+          <div class="summary-grid" id="summary-grid">
+            <div class="stat-card"><div class="stat-label">Orders Today</div><div class="stat-value" id="stat-orders">—</div><div class="stat-sub">total placed</div></div>
+            <div class="stat-card"><div class="stat-label">Pages Printed</div><div class="stat-value" id="stat-pages">—</div><div class="stat-sub">sheets used today</div></div>
+            <div class="stat-card"><div class="stat-label">Revenue Today</div><div class="stat-value" id="stat-revenue">—</div><div class="stat-sub">gross earnings (INR)</div></div>
+            <div class="stat-card danger" id="stat-failed-card" style="display:none;"><div class="stat-label">⚠️ Needs Attention</div><div class="stat-value" id="stat-failed">0</div><div class="stat-sub">click Queue to resolve</div></div>
+            <div class="stat-card" id="stat-normal-card"><div class="stat-label">Avg. Order Value</div><div class="stat-value" id="stat-avg">—</div><div class="stat-sub">INR per order</div></div>
+          </div>
+
+          <div class="card">
+            <div class="section-header">
+              <div class="section-title">Today's Orders</div>
+              <span id="today-date" style="font-size:12px; color:var(--text-muted);"></span>
+            </div>
+            <div id="today-table-wrap">
+              <div class="empty-state"><div class="spinner"></div><br>Loading orders...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- QUEUE PAGE -->
+        <div class="page" id="page-queue">
+          <div class="card">
+            <div class="section-header">
+              <div class="section-title">🖨️ Live Print Queue</div>
+              <span style="font-size:11px; color:var(--text-muted);">Auto-refreshes every 3s</span>
+            </div>
+            <div id="queue-list" class="queue-list">
+              <div class="empty-state"><div class="empty-icon">✅</div>Queue is empty</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-header">
+              <div class="section-title">Alert Log</div>
+            </div>
+            <div id="alert-log" style="font-size:12px; color:var(--text-secondary); max-height:200px; overflow-y:auto;">
+              <div class="empty-state">No alerts today.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- HISTORY PAGE -->
+        <div class="page" id="page-history">
+          <div class="card">
+            <div class="section-header">
+              <div class="section-title">This Month's Performance</div>
+            </div>
+            <div class="summary-grid" style="margin-bottom:20px;">
+              <div class="stat-card"><div class="stat-label">Orders This Month</div><div class="stat-value" id="month-orders">—</div></div>
+              <div class="stat-card"><div class="stat-label">Pages This Month</div><div class="stat-value" id="month-pages">—</div></div>
+              <div class="stat-card"><div class="stat-label">Revenue This Month</div><div class="stat-value" id="month-revenue">—</div></div>
+              <div class="stat-card"><div class="stat-label">Avg Order Value</div><div class="stat-value" id="month-avg">—</div></div>
+            </div>
+            <div class="card-title">Last 30 Days — Daily Revenue (INR)</div>
+            <div class="chart-container" id="revenue-chart">
+              <div class="empty-state">Loading chart...</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-header">
+              <div class="section-title">Order History</div>
+              <button class="btn btn-sm" onclick="exportCsv()">⬇ Export CSV</button>
+            </div>
+            <div class="filters" style="margin-bottom:14px;">
+              <input type="date" id="filter-from" onchange="loadHistory()" />
+              <input type="date" id="filter-to" onchange="loadHistory()" />
+              <select id="filter-status" onchange="loadHistory()">
+                <option value="">All Statuses</option>
+                <option value="PRINTED">Printed</option>
+                <option value="SIMULATED_PRINTED">Simulated</option>
+                <option value="NEEDS_ATTENTION">Needs Attention</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+              <select id="filter-mode" onchange="loadHistory()">
+                <option value="">All Modes</option>
+                <option value="BW">B&W</option>
+                <option value="COLOR">Color</option>
+              </select>
+            </div>
+            <div id="history-table-wrap">
+              <div class="empty-state"><div class="spinner"></div><br>Loading history...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SETTINGS PAGE -->
+        <div class="page" id="page-settings">
+          <!-- Shop Info -->
+          <div class="card">
+            <div class="card-title">Shop Information</div>
+            <div class="settings-section">
+              <div class="settings-row">
+                <div><div class="settings-label" id="set-shop-name">—</div><div class="settings-desc" id="set-shop-url">—</div></div>
+              </div>
+              <div class="settings-row" style="flex-direction:column; align-items:flex-start; gap:12px;">
+                <div class="settings-label">Shop QR Code</div>
+                <div id="qr-preview-wrap"></div>
+                <button class="btn" onclick="downloadQr()">⬇ Download QR Code (PNG)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Printer -->
+          <div class="card">
+            <div class="card-title">Printer Settings</div>
+            <div class="settings-section">
+              <div class="settings-row">
+                <div><div class="settings-label">Default Printer</div><div class="settings-desc">Overrides Windows system default</div></div>
+                <select id="printer-select" style="width:200px;" onchange="saveLocalSettings()">
+                  <option value="">Use System Default</option>
+                </select>
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-label">Auto-Print</div><div class="settings-desc">Print jobs immediately without manual approval</div></div>
+                <label class="toggle"><input type="checkbox" id="toggle-autoprint" onchange="saveRemoteSettings()"><div class="toggle-slider"></div></label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pricing -->
+          <div class="card">
+            <div class="card-title">Pricing (per page, INR)</div>
+            <div class="settings-section">
+              <div class="settings-row">
+                <div><div class="settings-label">B&W Price per Page</div></div>
+                <input type="number" id="price-bw" step="0.5" min="0" style="width:100px;" onchange="saveRemoteSettings()" />
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-label">Color Price per Page</div></div>
+                <input type="number" id="price-color" step="0.5" min="0" style="width:100px;" onchange="saveRemoteSettings()" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Optional Features -->
+          <div class="card">
+            <div class="card-title">Optional Features</div>
+            <div class="settings-section">
+              <div class="settings-row">
+                <div><div class="settings-label">🔔 Sound Notification for New Orders</div><div class="settings-desc">Plays a sound when a new job arrives</div></div>
+                <label class="toggle"><input type="checkbox" id="toggle-sound" onchange="saveLocalSettings()"><div class="toggle-slider"></div></label>
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-label">🖨️ Printer Health Check</div><div class="settings-desc">Show ink/toner levels (supported printers only)</div></div>
+                <label class="toggle"><input type="checkbox" id="toggle-printer-health" onchange="saveLocalSettings()"><div class="toggle-slider"></div></label>
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-label">Auto-launch on Windows Startup</div><div class="settings-desc">Start the agent automatically when you log in</div></div>
+                <label class="toggle"><input type="checkbox" id="toggle-autolaunch" onchange="saveLocalSettings()"><div class="toggle-slider"></div></label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Connection -->
+          <div class="card">
+            <div class="card-title">Connection</div>
+            <div class="settings-section">
+              <div class="settings-row">
+                <div><div class="settings-label">API Endpoint</div><div class="settings-desc">https://www.scanitprintit.in/api</div></div>
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-label">Status</div></div>
+                <span id="set-conn-status" class="badge badge-success">Paired</span>
+              </div>
+              <div style="padding:0 4px;">
+                <button class="btn btn-danger" onclick="doUnpair()">Disconnect & Re-pair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /main -->
+    </div><!-- /layout -->
+  </div><!-- /main-app -->
+</div><!-- /app -->
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+const state = {
+  page: 'dashboard',
+  online: false,
+  printerOk: false,
+  shopName: '',
+  shopSlug: '',
+  dashboardData: null,
+  alertLog: [],
+};
+
+// ─── Status Badges ───────────────────────────────────────────────────────────
+const STATUS_BADGE = {
+  PAID_QUEUED:       { cls: 'badge-info',    label: 'Queued' },
+  PRINTING:          { cls: 'badge-accent',  label: 'Printing' },
+  PRINTED:           { cls: 'badge-success', label: 'Printed' },
+  SIMULATED_PRINTED: { cls: 'badge-purple',  label: 'Simulated' },
+  NEEDS_ATTENTION:   { cls: 'badge-danger',  label: 'Failed' },
+  CANCELLED:         { cls: 'badge-muted',   label: 'Cancelled' },
+  CANCELLED_REFUNDED:{ cls: 'badge-muted',   label: 'Refunded' },
+  AWAITING_PAYMENT:  { cls: 'badge-warning', label: 'Unpaid' },
+  AWAITING_APPROVAL: { cls: 'badge-warning', label: 'Pending Approval' },
+};
+
+function statusBadge(status) {
+  const s = STATUS_BADGE[status] || { cls: 'badge-muted', label: status };
+  return `<span class="badge ${s.cls}">${s.label}</span>`;
+}
+
+function formatINR(n) {
+  return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+}
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.floor(mins / 60)}h ago`;
+}
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+function navigate(page) {
+  state.page = page;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelector(`[data-page="${page}"]`).classList.add('active');
+  if (page === 'history') loadHistory();
+  if (page === 'settings') loadSettings();
+}
+
+// ─── Pairing ─────────────────────────────────────────────────────────────────
+async function doPair() {
+  const code = document.getElementById('pair-input').value.trim();
+  if (code.length !== 6) { showPairError('Enter a 6-digit code.'); return; }
+  const btn = document.getElementById('pair-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+  const result = await window.api.pair(code);
+  if (result.success) {
+    init();
+  } else {
+    showPairError(result.error || 'Pairing failed. Check the code and try again.');
+    btn.disabled = false; btn.textContent = 'Pair Device';
+  }
+}
+
+function showPairError(msg) {
+  const el = document.getElementById('pair-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function doUnpair() {
+  if (!confirm('Disconnect this device? You will need to re-pair.')) return;
+  const result = await window.api.unpair();
+  if (!result.success) { alert(result.error); return; }
+  document.getElementById('main-app').style.display = 'none';
+  document.getElementById('pair-screen').style.display = 'flex';
+}
+
+// ─── Status Bar ──────────────────────────────────────────────────────────────
+function updateConnectivity({ online, apiReachable }) {
+  state.online = online;
+  const dot = document.getElementById('dot-internet');
+  const lbl = document.getElementById('label-internet');
+  if (online) { dot.className = 'dot green'; lbl.textContent = 'Online'; }
+  else { dot.className = 'dot red'; lbl.textContent = apiReachable === false ? 'API Down' : 'Offline'; }
+  document.getElementById('offline-banner').style.display = online ? 'none' : 'flex';
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const data = await window.api.getDashboard();
+    state.dashboardData = data;
+
+    if (data._cached) {
+      const mins = Math.floor((Date.now() - data._cachedAt) / 60000);
+      document.getElementById('cache-age').textContent = mins + ' min ago';
+    }
+
+    // Summary cards
+    const t = data.today || {};
+    document.getElementById('stat-orders').textContent = t.totalOrders ?? 0;
+    document.getElementById('stat-pages').textContent = t.totalPages ?? 0;
+    document.getElementById('stat-revenue').textContent = formatINR(t.totalRevenue);
+    const avg = t.totalOrders ? (t.totalRevenue / t.totalOrders) : 0;
+    document.getElementById('stat-avg').textContent = formatINR(avg);
+
+    if (t.failedCount > 0) {
+      document.getElementById('stat-failed-card').style.display = '';
+      document.getElementById('stat-normal-card').style.display = 'none';
+      document.getElementById('stat-failed').textContent = t.failedCount;
+      const b = document.getElementById('nav-badge-failed');
+      b.textContent = t.failedCount; b.style.display = '';
+    }
+
+    // Shop info
+    if (data.shop) {
+      document.getElementById('sidebar-shop-name').textContent = data.shop.name;
+      document.getElementById('titlebar-shop').textContent = data.shop.name + ' — Agent';
+      state.shopName = data.shop.name;
+      state.shopSlug = data.shop.slug;
+    }
+
+    // Today's orders table
+    renderOrderTable('today-table-wrap', t.orders || []);
+
+    // Queue
+    renderQueue(data.queue || []);
+
+  } catch (err) {
+    document.getElementById('today-table-wrap').innerHTML = `<div class="empty-state">⚠️ ${err.message}</div>`;
+  }
+}
+
+function renderOrderTable(wrapperId, orders) {
+  const wrap = document.getElementById(wrapperId);
+  if (!orders.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div>No orders yet</div>';
+    return;
+  }
+  const rows = orders.map(o => {
+    const isDanger = ['NEEDS_ATTENTION'].includes(o.status);
+    const isCancelled = o.status.startsWith('CANCELLED');
+    const style = isCancelled ? 'text-decoration:line-through; opacity:0.5;' : '';
+    return `<tr class="${isDanger ? 'danger-row' : ''}" style="${style}">
+      <td class="primary">#${o.orderNumber}</td>
+      <td>${o.pageCount ?? '—'}</td>
+      <td>${o.settings?.mode || 'BW'} / ${o.settings?.copies || 1} copy</td>
+      <td>${formatINR(o.totalAmount)}</td>
+      <td>${statusBadge(o.status)}</td>
+      <td>${new Date(o.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Order</th><th>Pages</th><th>Mode</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ─── Queue ────────────────────────────────────────────────────────────────────
+function renderQueue(jobs) {
+  const el = document.getElementById('queue-list');
+  const badge = document.getElementById('nav-badge-queue');
+  const active = jobs.filter(j => ['PAID_QUEUED','PRINTING','NEEDS_ATTENTION'].includes(j.status));
+
+  if (!active.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div>Queue is empty — no pending jobs</div>';
+    badge.style.display = 'none';
+    return;
+  }
+
+  badge.textContent = active.length; badge.style.display = '';
+  el.innerHTML = active.map(j => {
+    const isPrinting = j.status === 'PRINTING';
+    const isFailed = j.status === 'NEEDS_ATTENTION';
+    const isSim = j.status === 'SIMULATED_PRINTED' || j.simulationEnabled;
+    const dotColor = isPrinting ? 'var(--accent)' : isFailed ? 'var(--danger)' : 'var(--info)';
+    const modeChip = j.settings?.mode === 'COLOR'
+      ? `<span class="queue-chip chip-color">Color</span>`
+      : `<span class="queue-chip chip-bw">B&W</span>`;
+    const simChip = isSim ? `<span class="queue-chip chip-sim">SIM</span>` : '';
+    return `<div class="queue-item ${isPrinting ? 'printing' : ''} ${isFailed ? 'failed' : ''} ${isSim ? 'simulated' : ''}">
+      <div class="queue-status-dot" style="background:${dotColor};${isPrinting ? 'box-shadow:0 0 6px '+dotColor : ''}"></div>
+      <div class="queue-info">
+        <div class="queue-order">#${j.orderNumber}</div>
+        <div class="queue-file">${j.files?.[0]?.originalName || 'Unknown file'}</div>
+      </div>
+      <div class="queue-meta">
+        ${modeChip} ${simChip}
+        <span class="queue-chip chip-bw">${j.pageCount}p × ${j.settings?.copies||1}</span>
+        <span class="queue-time">${timeAgo(j.createdAt)}</span>
+      </div>
+      <div class="queue-actions">
+        ${isFailed ? `<button class="btn btn-sm btn-primary" onclick="retryJob('${j.id}')">Retry</button>` : ''}
+        ${!isPrinting ? `<button class="btn btn-sm btn-danger" onclick="cancelJob('${j.id}')">Cancel</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function retryJob(id) {
+  await window.api.retryJob(id);
+  addAlert(`🔄 Retry requested for job`);
+  loadDashboard();
+}
+
+async function cancelJob(id) {
+  if (!confirm('Cancel this print job?')) return;
+  await window.api.cancelJob(id);
+  loadDashboard();
+}
+
+// ─── History & Chart ─────────────────────────────────────────────────────────
+async function loadHistory() {
+  document.getElementById('history-table-wrap').innerHTML = '<div class="empty-state"><div class="spinner"></div><br>Loading...</div>';
+  const filters = {
+    from:   document.getElementById('filter-from').value,
+    to:     document.getElementById('filter-to').value,
+    status: document.getElementById('filter-status').value,
+    mode:   document.getElementById('filter-mode').value,
+  };
+  try {
+    const data = await window.api.getHistory(filters);
+    const orders = data.orders || [];
+    renderOrderTable('history-table-wrap', orders);
+  } catch (err) {
+    document.getElementById('history-table-wrap').innerHTML = `<div class="empty-state">⚠️ ${err.message}</div>`;
+  }
+}
+
+async function loadMonthlyStats() {
+  try {
+    const data = await window.api.getMonthlyStats();
+    document.getElementById('month-orders').textContent = data.totalOrders ?? '—';
+    document.getElementById('month-pages').textContent = data.totalPages ?? '—';
+    document.getElementById('month-revenue').textContent = formatINR(data.totalRevenue);
+    document.getElementById('month-avg').textContent = formatINR(data.avgOrderValue);
+    renderChart(data.dailyRevenue || []);
+  } catch {}
+}
+
+function renderChart(days) {
+  const el = document.getElementById('revenue-chart');
+  if (!days.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
+  const max = Math.max(...days.map(d => d.revenue), 1);
+  const today = new Date().toISOString().slice(0, 10);
+  el.innerHTML = days.map(d => {
+    const h = Math.max(4, Math.round((d.revenue / max) * 140));
+    const isToday = d.date === today;
+    return `<div class="chart-bar-wrap" title="₹${d.revenue.toFixed(0)} on ${d.date}">
+      <div class="chart-bar ${isToday ? 'today' : ''}" style="height:${h}px;"></div>
+      <div class="chart-label">${d.date.slice(5)}</div>
+    </div>`;
+  }).join('');
+}
+
+async function exportCsv() {
+  const filters = {
+    from:   document.getElementById('filter-from').value,
+    to:     document.getElementById('filter-to').value,
+    status: document.getElementById('filter-status').value,
+    mode:   document.getElementById('filter-mode').value,
+  };
+  await window.api.exportHistoryCsv(filters);
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+async function loadSettings() {
+  const s = await window.api.getSettings();
+  document.getElementById('toggle-sound').checked = s.soundEnabled;
+  document.getElementById('toggle-printer-health').checked = s.printerHealthEnabled;
+  document.getElementById('toggle-autolaunch').checked = s.autoLaunch;
+
+  // Shop info
+  const auth = await window.api.getAuthState();
+  const shopUrl = `https://www.scanitprintit.in/s/${auth.shopSlug || ''}`;
+  document.getElementById('set-shop-name').textContent = auth.shopName || '—';
+  document.getElementById('set-shop-url').textContent = shopUrl;
+
+  // QR preview
+  const qr = await window.api.getQrCode();
+  if (qr.success) {
+    document.getElementById('qr-preview-wrap').innerHTML = `<div class="qr-preview"><img src="${qr.dataUrl}" style="width:160px;height:160px;display:block;"></div>`;
+  }
+
+  // Printers
+  const ps = await window.api.getPrinters();
+  const sel = document.getElementById('printer-select');
+  sel.innerHTML = '<option value="">Use System Default</option>';
+  (ps.printers || []).forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    if (p === s.selectedPrinter) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+async function saveLocalSettings() {
+  await window.api.saveSettings({
+    soundEnabled:         document.getElementById('toggle-sound').checked,
+    printerHealthEnabled: document.getElementById('toggle-printer-health').checked,
+    autoLaunch:           document.getElementById('toggle-autolaunch').checked,
+    selectedPrinter:      document.getElementById('printer-select').value,
+  });
+}
+
+async function saveRemoteSettings() {
+  await window.api.saveSettings({
+    remote: {
+      autoPrintEnabled: document.getElementById('toggle-autoprint').checked,
+      bwPricePerPage:   parseFloat(document.getElementById('price-bw').value) || 0,
+      colorPricePerPage: parseFloat(document.getElementById('price-color').value) || 0,
+    }
+  });
+}
+
+async function downloadQr() {
+  await window.api.downloadQrCode();
+}
+
+// ─── Alert Log ────────────────────────────────────────────────────────────────
+function addAlert(msg) {
+  state.alertLog.unshift({ msg, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) });
+  if (state.alertLog.length > 50) state.alertLog.pop();
+  const el = document.getElementById('alert-log');
+  el.innerHTML = state.alertLog.map(a => `<div style="padding:6px 0; border-bottom:1px solid var(--border-subtle);">
+    <span style="color:var(--text-muted); font-size:10px; margin-right:8px;">${a.time}</span>${a.msg}
+  </div>`).join('');
+}
+
+// ─── Real-Time Event Listeners ────────────────────────────────────────────────
+window.api.onConnectivityChange(updateConnectivity);
+
+window.api.onNewJob((job) => {
+  addAlert(`📥 New job #${job.orderNumber} arrived (${job.pageCount} pages)`);
+  loadDashboard();
+});
+
+window.api.onJobStatusChange(({ orderNumber, status }) => {
+  addAlert(`🔄 Job #${orderNumber} → ${status}`);
+  loadDashboard();
+});
+
+// ─── Initialise ───────────────────────────────────────────────────────────────
+async function init() {
+  const auth = await window.api.getAuthState();
+  if (!auth.paired) {
+    document.getElementById('pair-screen').style.display = 'flex';
+    document.getElementById('main-app').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('pair-screen').style.display = 'none';
+  document.getElementById('main-app').style.display = 'flex';
+
+  // Date display
+  document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  await loadDashboard();
+  await loadMonthlyStats();
+
+  // Refresh dashboard every 10s
+  setInterval(loadDashboard, 10000);
+}
+
+init();
+</script>
+</body>
+</html>
