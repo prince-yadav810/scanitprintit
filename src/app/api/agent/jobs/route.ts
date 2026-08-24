@@ -42,7 +42,12 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'asc' }
     });
 
-    return NextResponse.json({ success: true, jobs });
+    const jobsWithSimulationFlag = jobs.map(job => ({
+      ...job,
+      simulationEnabled: agent.shop.isTestShop && agent.shop.simulationEnabled
+    }));
+
+    return NextResponse.json({ success: true, jobs: jobsWithSimulationFlag });
   } catch (error) {
     console.error('Agent poll error:', error);
     return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 });

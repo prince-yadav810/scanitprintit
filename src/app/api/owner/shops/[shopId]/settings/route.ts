@@ -12,12 +12,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sho
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { autoPrintEnabled, pricing } = await req.json();
+    const { autoPrintEnabled, pricing, simulationEnabled } = await req.json();
+
+    const shop = await prisma.shop.findUnique({ where: { id: shopId } });
+    if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
+
+    const updateData: any = { autoPrintEnabled };
+    if (shop.isTestShop && simulationEnabled !== undefined) {
+      updateData.simulationEnabled = simulationEnabled;
+    }
 
     // Update shop settings
     await prisma.shop.update({
       where: { id: shopId },
-      data: { autoPrintEnabled }
+      data: updateData
     });
 
     // Update pricing tiers (simplified for prototype: we just delete and recreate)

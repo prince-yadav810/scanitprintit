@@ -8,6 +8,7 @@ export default function ShopSettingsUI({ shop }: { shop: any }) {
   const colorTier = shop.pricingTiers?.find((t: any) => t.mode === 'COLOR') || { pricePerPage: 10.0 };
 
   const [autoPrint, setAutoPrint]   = useState(shop.autoPrintEnabled);
+  const [simulation, setSimulation] = useState(shop.simulationEnabled || false);
   const [bwPrice, setBwPrice]       = useState(String(bwTier.pricePerPage));
   const [colorPrice, setColorPrice] = useState(String(colorTier.pricePerPage));
   const [isSaving, setIsSaving]     = useState(false);
@@ -25,6 +26,7 @@ export default function ShopSettingsUI({ shop }: { shop: any }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           autoPrintEnabled: autoPrint,
+          ...(shop.isTestShop ? { simulationEnabled: simulation } : {}),
           pricing: {
             BW: parseFloat(bwPrice),
             COLOR: parseFloat(colorPrice),
@@ -79,6 +81,20 @@ export default function ShopSettingsUI({ shop }: { shop: any }) {
                 <div className="toggle-thumb"></div>
               </label>
             </label>
+
+            {shop.isTestShop && (
+              <label className="toggle-row" style={{ cursor: 'pointer', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }} onClick={() => setSimulation(!simulation)}>
+                <div>
+                  <div className="font-medium" style={{ fontSize: '0.95rem' }}>Simulated Printer Mode <span className="badge badge-orange" style={{ marginLeft: 8 }}>TEST ONLY</span></div>
+                  <p className="text-sm text-muted mt-2">When enabled, the Windows Agent will intercept print jobs, save them as PDFs on the Desktop, and report them as SIMULATED_PRINTED without touching the physical printer spooler.</p>
+                </div>
+                <label className="toggle" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={simulation} onChange={() => setSimulation(!simulation)} />
+                  <div className="toggle-track"></div>
+                  <div className="toggle-thumb"></div>
+                </label>
+              </label>
+            )}
           </div>
 
           {/* Pricing */}

@@ -180,7 +180,8 @@ async function startPolling() {
       // Server-side idempotency guard
       if (config.printedJobs.includes(job.id)) {
         log('WARN', `Job ${job.orderNumber} already printed. Notifying server.`);
-        await updateJobStatus(job.id, 'PRINTED');
+        const fallbackStatus = job.simulationEnabled ? 'SIMULATED_PRINTED' : 'PRINTED';
+        await updateJobStatus(job.id, fallbackStatus);
         return;
       }
 
@@ -197,6 +198,11 @@ async function startPolling() {
       await updateJobStatus(job.id, 'PRINTING');
 
       let allPrinted = true;
+      const simMode = job.simulationEnabled === true;
+      
+      if (simMode) {
+        log('INFO', '*** SIMULATED PRINTER MODE ACTIVE ***');
+      }
 
       for (const file of job.files) {
         let downloadUrl = file.cloudinaryUrl;
@@ -221,7 +227,39 @@ async function startPolling() {
           continue;
         }
 
-        if (os.platform() === 'win32') {
+        if (simMode) {
+          try {
+            const simDir = path.join(os.homedir(), 'Desktop', 'printdesk-simulated-output');
+            if (!fs.existsSync(simDir)) fs.mkdirSync(simDir, { recursive: true });
+            
+            const safeName = file.originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const finalPdfPath = path.join(simDir, `pd_${job.orderNumber}_${safeName}.pdf`);
+            fs.copyFileSync(tempPath, finalPdfPath);
+            
+            const manifest = {
+              orderId: job.id,
+              orderNumber: job.orderNumber,
+              fileName: file.originalName,
+              pdfUrl: downloadUrl,
+              pageCount: job.pageCount,
+              selectedPrinter: 'PrintDesk Simulator',
+              copies: job.settings?.copies || 1,
+              mode: job.settings?.mode || 'BW',
+              sides: job.settings?.sides || 'SINGLE',
+              paperSize: 'A4',
+              timestamp: new Date().toISOString(),
+              result: 'success'
+            };
+            fs.writeFileSync(path.join(simDir, `pd_${job.orderNumber}_manifest.json`), JSON.stringify(manifest, null, 2));
+            
+            log('OK', `[SIMULATION] Saved PDF and manifest to Desktop/printdesk-simulated-output`);
+            await new Promise(r => setTimeout(r, 2000)); // fake delay
+          } catch (err) {
+            log('ERR', `[SIMULATION] Failed: ${err.message}`);
+            allPrinted = false;
+            await updateJobStatus(job.id, 'NEEDS_ATTENTION');
+          }
+        } else if (os.platform() === 'win32') {
           try {
             const printOptions = {
               copies: job.settings?.copies || 1,
@@ -236,10 +274,10 @@ async function startPolling() {
             await updateJobStatus(job.id, 'NEEDS_ATTENTION');
           }
         } else {
-          // Dev / non-Windows simulation
-          log('INFO', `[Simulation] Would print ${file.originalName} x${job.settings?.copies || 1}`);
+          // Dev / non-Windows simulation (legacy fallback)
+          log('INFO', `[Dev Simulation] Would print ${file.originalName} x${job.settings?.copies || 1}`);
           await new Promise((r) => setTimeout(r, 1500));
-          log('OK',   `[Simulation] Done.`);
+          log('OK',   `[Dev Simulation] Done.`);
         }
 
         fs.unlink(tempPath, () => {});
@@ -251,8 +289,9 @@ async function startPolling() {
         if (config.printedJobs.length > 50) config.printedJobs.shift();
         saveConfig();
 
-        await updateJobStatus(job.id, 'PRINTED');
-        log('OK',   `Job ${job.orderNumber} complete.\n`);
+        const finalStatus = simMode ? 'SIMULATED_PRINTED' : 'PRINTED';
+        await updateJobStatus(job.id, finalStatus);
+        log('OK',   `Job ${job.orderNumber} complete (${finalStatus}).\n`);
       }
 
     } catch (err) {

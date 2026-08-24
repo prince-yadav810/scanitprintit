@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ord
     }
 
     const { status } = await req.json();
-    if (!status || !['PRINTING', 'PRINTED', 'NEEDS_ATTENTION'].includes(status)) {
+    if (!status || !['PRINTING', 'PRINTED', 'SIMULATED_PRINTED', 'NEEDS_ATTENTION'].includes(status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
 

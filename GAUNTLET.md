@@ -88,3 +88,10 @@ This document tracks the iterative validation of the riskiest assumptions for th
 - **Smallest implementation/test**: Create a node script (`testAudit.mjs`) to test Cloudinary Aspose limits. Code review and patch `/api/admin/pair`, `/api/agent/jobs/.../status`, `seedAdmin.ts`, and `railway.json`.
 - **Pass criteria**: Hardcoded passwords removed. 10MB limit applied for Aspose. Idempotency state-machine strictness added. Cron configured.
 - **Result**: Passed. Aspose gracefully returns an active subscription requirement error rather than failing silently or accepting huge payloads. Idempotency successfully prevents race conditions between duplicate agent requests.
+
+## 13. Simulated Print Gauntlet
+
+- **Assumption being tested**: We can test the entire workflow (agent pairing, polling, downloading, manifest generation) without a physical printer by using a safe "Simulated Printer Mode".
+- **Smallest implementation/test**: Add an `isTestShop` flag to DB, add a dashboard toggle for simulation, and update `agent/index.js` to dump PDFs to the Desktop and report `SIMULATED_PRINTED`.
+- **Pass criteria**: A simulated job is intercepted, saved locally with a JSON manifest, marked distinctly in the UI (purple badge), and production shops cannot secretly enable this mode.
+- **Result**: Passed. The UI distinctly renders the simulated jobs and includes a "Print Job Inspector" to verify the payload. The Windows agent successfully writes the exact print manifest to `Desktop/printdesk-simulated-output`.

@@ -179,7 +179,10 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                       <tr key={shop.id}>
                         <td>
                           <div>
-                            <a href={`/owner/${shop.id}`} className="font-medium" style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{shop.name}</a>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <a href={`/owner/${shop.id}`} className="font-medium" style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{shop.name}</a>
+                              {shop.isTestShop && <span className="badge badge-orange">TEST SHOP</span>}
+                            </div>
                             <div className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>/s/{shop.slug}</div>
                           </div>
                         </td>

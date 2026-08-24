@@ -10,6 +10,7 @@ function StatusBadge({ status }: { status: string }) {
     PAID_QUEUED:       { cls: 'badge badge-blue',    label: 'Queued' },
     PRINTING:          { cls: 'badge badge-orange',  label: 'Printing' },
     PRINTED:           { cls: 'badge badge-green',   label: 'Printed' },
+    SIMULATED_PRINTED: { cls: 'badge badge-purple',  label: 'Simulated Print' },
     NEEDS_ATTENTION:   { cls: 'badge badge-red',     label: 'Needs Attention' },
     CANCELLED:         { cls: 'badge badge-neutral', label: 'Cancelled' },
     CANCELLED_REFUNDED:{ cls: 'badge badge-neutral', label: 'Refunded' },
@@ -31,6 +32,7 @@ export default function AdminShopUI({ shop, userRole }: { shop: any; userRole?: 
   const [isGenerating, setIsGenerating] = useState(false);
   const [orders, setOrders] = useState(shop.orders);
   const [loadingOrder, setLoadingOrder] = useState<string | null>(null);
+  const [inspectingOrder, setInspectingOrder] = useState<any | null>(null);
 
   const generatePairingCode = async () => {
     setIsGenerating(true);
@@ -201,6 +203,12 @@ export default function AdminShopUI({ shop, userRole }: { shop: any; userRole?: 
                                 <XCircle size={12} /> Cancel
                               </button>
                             )}
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setInspectingOrder(order)}
+                            >
+                              Inspect
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -212,6 +220,36 @@ export default function AdminShopUI({ shop, userRole }: { shop: any; userRole?: 
           </div>
         </div>
       </div>
+
+      {/* Print Job Inspector Modal */}
+      {inspectingOrder && (
+        <div className="modal-overlay" onClick={() => setInspectingOrder(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 600 }}>
+            <h2 style={{ marginBottom: 16 }}>Print Job Inspector: {inspectingOrder.orderNumber}</h2>
+            
+            <div style={{ background: 'var(--bg-subtle)', padding: 16, borderRadius: 'var(--radius-md)', marginBottom: 16 }}>
+              <h3 style={{ fontSize: '0.9rem', marginBottom: 8, color: 'var(--text-secondary)' }}>Files</h3>
+              {inspectingOrder.files?.map((f: any) => (
+                <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.9rem' }}>
+                  <span>{f.originalName}</span>
+                  <a href={f.convertedPdfUrl || f.cloudinaryUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>View PDF</a>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: 'var(--bg-subtle)', padding: 16, borderRadius: 'var(--radius-md)', marginBottom: 24 }}>
+              <h3 style={{ fontSize: '0.9rem', marginBottom: 8, color: 'var(--text-secondary)' }}>Agent Payload (Print Settings)</h3>
+              <pre style={{ fontSize: '0.8rem', overflowX: 'auto' }}>
+                {JSON.stringify(inspectingOrder.settings || {}, null, 2)}
+              </pre>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setInspectingOrder(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
