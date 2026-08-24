@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, Cpu, RefreshCw, CheckCircle2, XCircle, Clock, Printer, AlertTriangle, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Cpu, RefreshCw, CheckCircle2, XCircle, Clock, Printer, AlertTriangle, ChevronRight, Settings } from 'lucide-react';
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { cls: string; label: string }> = {
@@ -19,7 +19,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function updateOrderStatus(orderId: string, status: string) {
-  return fetch(`/api/admin/orders/${orderId}/status`, {
+  return fetch(`/api/owner/orders/${orderId}/status`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),
@@ -35,7 +35,7 @@ export default function AdminShopUI({ shop }: { shop: any }) {
   const generatePairingCode = async () => {
     setIsGenerating(true);
     try {
-      const res = await fetch('/api/admin/pair', {
+      const res = await fetch('/api/owner/pair', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shopId: shop.id }),
@@ -69,16 +69,16 @@ export default function AdminShopUI({ shop }: { shop: any }) {
       <nav className="topbar">
         <div className="container">
           <div className="topbar-inner">
-            <a href="/admin/platform" className="btn-back">
-              <ArrowLeft size={14} /> All Shops
+            <a href="/admin" className="btn-back">
+              <ArrowLeft size={16} /> Back to Platform Admin
             </a>
             <div className="topbar-breadcrumb">
               <span>/</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{shop.name}</span>
             </div>
             <div className="topbar-actions">
-              <a href={`/admin/shop/${shop.id}/settings`} className="btn btn-secondary btn-sm">
-                Settings
+              <a href={`/owner/${shop.id}/settings`} className="btn btn-secondary btn-sm">
+                <Settings size={14} /> Shop Settings
               </a>
             </div>
           </div>

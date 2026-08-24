@@ -20,7 +20,7 @@ export default function ShopSettingsUI({ shop }: { shop: any }) {
     setError('');
     setSaved(false);
     try {
-      const res = await fetch(`/api/admin/shops/${shop.id}/settings`, {
+      const res = await fetch(`/api/owner/shops/${shop.id}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -46,7 +46,7 @@ export default function ShopSettingsUI({ shop }: { shop: any }) {
       <nav className="topbar">
         <div className="container-sm" style={{ maxWidth: '100%', padding: '0 24px' }}>
           <div className="topbar-inner">
-            <a href={`/admin/shop/${shop.id}`} className="btn-back">
+            <a href={`/owner/${shop.id}`} className="btn-back">
               <ArrowLeft size={14} /> {shop.name}
             </a>
             <div className="topbar-breadcrumb">

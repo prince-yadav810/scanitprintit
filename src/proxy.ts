@@ -5,8 +5,8 @@ import { decrypt } from '@/lib/auth';
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // Protect all /admin routes
-  if (path.startsWith('/admin')) {
+  // Protect both /admin and /owner routes
+  if (path.startsWith('/admin') || path.startsWith('/owner')) {
     const sessionCookie = request.cookies.get('printdesk_session')?.value;
     
     if (!sessionCookie) {
@@ -19,11 +19,11 @@ export async function proxy(request: NextRequest) {
     }
 
     // Role-based access control
-    if (path.startsWith('/admin/platform') && session.role !== 'PLATFORM_ADMIN') {
-      return NextResponse.redirect(new URL('/admin/shop', request.url)); // unauthorized
+    if (path.startsWith('/admin') && session.role !== 'PLATFORM_ADMIN') {
+      return NextResponse.redirect(new URL(session.shopId ? `/owner/${session.shopId}` : '/login', request.url)); 
     }
 
-    if (path.startsWith('/admin/shop') && session.role !== 'SHOP_OWNER' && session.role !== 'PLATFORM_ADMIN') {
+    if (path.startsWith('/owner') && session.role !== 'SHOP_OWNER' && session.role !== 'PLATFORM_ADMIN') {
       return NextResponse.redirect(new URL('/login', request.url));
     }
   }
@@ -32,5 +32,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/owner/:path*'],
 };

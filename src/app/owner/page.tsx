@@ -9,9 +9,9 @@ export default async function AdminShopPage() {
   }
 
   if (session.shopId) {
-    redirect(`/admin/shop/${session.shopId}`);
+    redirect(`/owner/${session.shopId}`);
   }
 
   // If no shopId is associated with the user, send them back to platform
-  redirect('/admin/platform');
+  redirect('/admin');
 }

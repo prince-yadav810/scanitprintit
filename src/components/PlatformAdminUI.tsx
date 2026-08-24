@@ -179,7 +179,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                       <tr key={shop.id}>
                         <td>
                           <div>
-                            <a href={`/admin/shop/${shop.id}`} className="font-medium" style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{shop.name}</a>
+                            <a href={`/owner/${shop.id}`} className="font-medium" style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{shop.name}</a>
                             <div className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>/s/{shop.slug}</div>
                           </div>
                         </td>
@@ -192,7 +192,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                             <button className="btn btn-ghost btn-sm" onClick={() => showQRCode(shop)} title="View QR Code">
                               <QrCode size={14} />
                             </button>
-                            <a href={`/admin/shop/${shop.id}/settings`} className="btn btn-ghost btn-sm" title="Settings">
+                            <a href={`/owner/${shop.id}/settings`} className="btn btn-ghost btn-sm" title="Settings">
                               <Settings size={14} />
                             </a>
                           </div>
