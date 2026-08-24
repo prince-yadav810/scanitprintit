@@ -47,7 +47,7 @@ function log(level, msg) {
 function printHeader() {
   console.clear();
   console.log(`\n┌${line()}┐`);
-  console.log(box('PrintDesk Print Agent'));
+  console.log(box('ScanItPrintIt Print Agent'));
   console.log(box(`v${VERSION}   ${os.hostname()}`));
   console.log(`├${line()}┤`);
   console.log(box(`API  ${API_BASE}`));
@@ -229,7 +229,7 @@ async function startPolling() {
 
         if (simMode) {
           try {
-            const simDir = path.join(os.homedir(), 'Desktop', 'printdesk-simulated-output');
+            const simDir = path.join(os.homedir(), 'Desktop', 'scanitprintit-simulated-output');
             if (!fs.existsSync(simDir)) fs.mkdirSync(simDir, { recursive: true });
             
             const safeName = file.originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -242,7 +242,7 @@ async function startPolling() {
               fileName: file.originalName,
               pdfUrl: downloadUrl,
               pageCount: job.pageCount,
-              selectedPrinter: 'PrintDesk Simulator',
+              selectedPrinter: 'ScanItPrintIt Simulator',
               copies: job.settings?.copies || 1,
               mode: job.settings?.mode || 'BW',
               sides: job.settings?.sides || 'SINGLE',
@@ -252,7 +252,7 @@ async function startPolling() {
             };
             fs.writeFileSync(path.join(simDir, `pd_${job.orderNumber}_manifest.json`), JSON.stringify(manifest, null, 2));
             
-            log('OK', `[SIMULATION] Saved PDF and manifest to Desktop/printdesk-simulated-output`);
+            log('OK', `[SIMULATION] Saved PDF and manifest to Desktop/scanitprintit-simulated-output`);
             await new Promise(r => setTimeout(r, 2000)); // fake delay
           } catch (err) {
             log('ERR', `[SIMULATION] Failed: ${err.message}`);

@@ -41,11 +41,11 @@ export async function POST(req: NextRequest) {
       order_id:       `PD-${order.orderNumber}-${Date.now()}`,
       order_amount:   Number(order.totalAmount.toFixed(2)),
       order_currency: 'INR',
-      order_note:     `PrintDesk order ${order.orderNumber} at ${order.shop.name}`,
+      order_note:     `ScanItPrintIt order ${order.orderNumber} at ${order.shop.name}`,
       customer_details: {
         customer_id:    order.id,
         customer_phone: '9999999999', // Customer phone not collected in MVP — Cashfree requires it
-        customer_name:  'PrintDesk Customer',
+        customer_name:  'ScanItPrintIt Customer',
       },
       order_meta: {
         return_url:  `${appUrl}/o/${order.id}?payment_status={payment_status}`,

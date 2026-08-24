@@ -84,7 +84,10 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
       <nav className="topbar">
         <div className="container">
           <div className="topbar-inner">
-            <span className="topbar-brand">PrintDesk</span>
+            <span className="topbar-brand" style={{ display: 'flex', alignItems: 'center' }}>
+              <img src="/icon.png" alt="ScanItPrintIt" style={{ height: 24, marginRight: 8 }} />
+              ScanItPrintIt
+            </span>
             <span className="topbar-breadcrumb">
               <span>/</span> Platform Admin
             </span>
@@ -99,7 +102,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
         {/* Header */}
         <div className="fade-up" style={{ marginBottom: 32 }}>
           <h1 style={{ fontSize: '1.75rem', marginBottom: 6 }}>All Shops</h1>
-          <p className="text-muted text-sm">Manage and onboard shops on the PrintDesk platform.</p>
+          <p className="text-muted text-sm">Manage and onboard shops on the ScanItPrintIt platform.</p>
         </div>
 
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>

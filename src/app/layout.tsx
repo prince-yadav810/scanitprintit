@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PrintDesk",
-  description: "Scan, upload, and print instantly at any PrintDesk shop.",
+  title: "ScanItPrintIt",
+  description: "Scan, upload, and print instantly at any ScanItPrintIt shop.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -7,7 +7,9 @@ export default function Home() {
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <nav style={{ padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontWeight: 600, fontSize: '1.2rem', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>PrintDesk</div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <img src="/logo.png" alt="ScanItPrintIt" style={{ height: 28 }} />
+        </div>
         <div>
           <Link href="/login" className="btn btn-secondary btn-sm" style={{ fontWeight: 500 }}>Shop Login</Link>
         </div>
@@ -22,7 +24,7 @@ export default function Home() {
             Scan. Upload. <br/><span style={{ color: 'var(--accent)' }}>Print Instantly.</span>
           </h1>
           <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', maxWidth: 600, margin: '0 auto 48px', lineHeight: 1.6 }}>
-            No more pen drives. No more WhatsApp web. Just scan the QR code at any PrintDesk partner shop and get your documents instantly.
+            No more pen drives. No more WhatsApp web. Just scan the QR code at any ScanItPrintIt partner shop and get your documents instantly.
           </p>
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
             <Link href="/login" className="btn btn-primary btn-xl" style={{ gap: 8, padding: '0 32px' }}>
@@ -52,7 +54,7 @@ export default function Home() {
       </main>
 
       <footer style={{ padding: '40px 24px', textAlign: 'center', borderTop: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-        <p>© {new Date().getFullYear()} PrintDesk. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} ScanItPrintIt. All rights reserved.</p>
       </footer>
     </div>
   );

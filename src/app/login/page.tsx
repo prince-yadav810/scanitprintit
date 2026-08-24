@@ -33,7 +33,7 @@ export default function LoginPage() {
 
       {/* Top wordmark */}
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
-        <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '-0.02em' }}>PrintDesk</span>
+        <img src="/logo.png" alt="ScanItPrintIt" style={{ height: 24 }} />
       </div>
 
       {/* Centered card */}
