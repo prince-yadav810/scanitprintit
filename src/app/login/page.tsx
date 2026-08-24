@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const [email, setEmail]       = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +17,7 @@ export default function LoginPage() {
       const res  = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
       if (data.success) window.location.href = data.redirectUrl;
@@ -54,16 +54,16 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="field">
-              <label className="label" htmlFor="email">Email address</label>
+              <label className="label" htmlFor="username">Username</label>
               <input
-                id="email"
-                type="email"
+                id="username"
+                type="text"
                 className="input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@printdesk.com"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="admin"
                 required
-                autoComplete="email"
+                autoComplete="username"
               />
             </div>
             <div className="field">

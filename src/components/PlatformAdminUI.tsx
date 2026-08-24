@@ -29,7 +29,7 @@ function AgentStatus({ agents }: { agents: any[] }) {
 export default function PlatformAdminUI({ initialShops }: { initialShops: any[] }) {
   const [shops, setShops] = useState(initialShops);
   const [newShopName, setNewShopName] = useState('');
-  const [newShopEmail, setNewShopEmail] = useState('');
+  const [newShopUsername, setNewShopUsername] = useState('');
   const [newShopPassword, setNewShopPassword] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
@@ -37,7 +37,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
 
   const handleCreateShop = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newShopName.trim() || !newShopEmail.trim() || !newShopPassword.trim()) return;
+    if (!newShopName.trim() || !newShopUsername.trim() || !newShopPassword.trim()) return;
     setIsCreating(true);
     setError('');
     try {
@@ -46,7 +46,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           name: newShopName.trim(),
-          ownerEmail: newShopEmail.trim(),
+          ownerUsername: newShopUsername.trim(),
           ownerPassword: newShopPassword.trim()
         }),
       });
@@ -54,7 +54,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
       if (data.success) {
         setShops([data.shop, ...shops]);
         setNewShopName('');
-        setNewShopEmail('');
+        setNewShopUsername('');
         setNewShopPassword('');
       } else {
         setError(data.error || 'Failed to create shop');
@@ -119,13 +119,13 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                 />
               </div>
               <div className="field">
-                <label className="label">Owner Email</label>
+                <label className="label">Owner Username</label>
                 <input
-                  type="email"
+                  type="text"
                   className="input"
-                  value={newShopEmail}
-                  onChange={(e) => setNewShopEmail(e.target.value)}
-                  placeholder="e.g. ramesh@gmail.com"
+                  value={newShopUsername}
+                  onChange={(e) => setNewShopUsername(e.target.value)}
+                  placeholder="e.g. ramesh_copy"
                   required
                 />
               </div>
@@ -167,7 +167,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                   <thead>
                     <tr>
                       <th>Shop</th>
-                      <th>Owner Email</th>
+                      <th>Owner Username</th>
                       <th>Status</th>
                       <th>Orders</th>
                       <th>Agent</th>
@@ -183,7 +183,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                             <div className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>/s/{shop.slug}</div>
                           </div>
                         </td>
-                        <td><span className="text-sm text-muted">{shop.user?.email || 'None'}</span></td>
+                        <td><span className="text-sm text-muted">{shop.user?.username || 'None'}</span></td>
                         <td><StatusBadge status={shop.status} /></td>
                         <td><span className="text-sm">{shop._count?.orders ?? 0}</span></td>
                         <td><AgentStatus agents={shop.agents} /></td>

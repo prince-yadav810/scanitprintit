@@ -21,16 +21,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { name, ownerEmail, ownerPassword } = await req.json();
+    const { name, ownerUsername, ownerPassword } = await req.json();
 
-    if (!name || !ownerEmail || !ownerPassword) {
-      return NextResponse.json({ error: 'Shop name, owner email, and password are required' }, { status: 400 });
+    if (!name || !ownerUsername || !ownerPassword) {
+      return NextResponse.json({ error: 'Shop name, owner username, and password are required' }, { status: 400 });
     }
 
-    // Check if user email already exists
-    const existingUser = await prisma.user.findUnique({ where: { email: ownerEmail } });
+    // Check if user username already exists
+    const existingUser = await prisma.user.findUnique({ where: { username: ownerUsername } });
     if (existingUser) {
-      return NextResponse.json({ error: 'Email is already registered' }, { status: 400 });
+      return NextResponse.json({ error: 'Username is already registered' }, { status: 400 });
     }
 
     // Generate unique slug
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         },
         user: {
           create: {
-            email: ownerEmail,
+            username: ownerUsername,
             password: hashedPassword,
             role: 'SHOP_OWNER'
           }
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         },
         agents: true,
         user: {
-          select: { email: true }
+          select: { username: true }
         }
       }
     });

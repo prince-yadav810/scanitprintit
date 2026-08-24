@@ -10,7 +10,7 @@ export default async function PlatformAdminPage() {
       },
       agents: true,
       user: {
-        select: { email: true }
+        select: { username: true }
       }
     }
   });

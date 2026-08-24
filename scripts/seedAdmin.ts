@@ -2,7 +2,7 @@ import { prisma } from '../src/lib/prisma';
 import bcrypt from 'bcrypt';
 
 async function main() {
-  const email = 'admin@printdesk.com';
+  const username = 'admin';
   const rawPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'password123';
   
   if (rawPassword === 'password123') {
@@ -12,16 +12,16 @@ async function main() {
   const password = await bcrypt.hash(rawPassword, 10);
 
   const user = await prisma.user.upsert({
-    where: { email },
+    where: { username },
     update: { password },
     create: {
-      email,
+      username,
       password,
       role: 'PLATFORM_ADMIN',
     },
   });
 
-  console.log('✅ Admin user created/updated:', user.email);
+  console.log('✅ Admin user created/updated:', user.username);
 }
 
 main()
