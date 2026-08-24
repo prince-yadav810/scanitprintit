@@ -67,7 +67,7 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
 
   const showQRCode = async (shop: any) => {
     const baseUrl = typeof window !== 'undefined' && window.location.origin.includes('localhost') 
-      ? 'https://scanitprintit.in' 
+      ? 'https://scanitprintit.vercel.app' 
       : window.location.origin;
     const shopUrl = `${baseUrl}/s/${shop.slug}`;
     try {
@@ -187,8 +187,8 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                               {shop.isTestShop && <span className="badge badge-orange">TEST SHOP</span>}
                             </div>
                             <div className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
-                              <a href={`https://scanitprintit.in/s/${shop.slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>
-                                https://scanitprintit.in/s/{shop.slug}
+                              <a href={`https://scanitprintit.vercel.app/s/${shop.slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>
+                                https://scanitprintit.vercel.app/s/{shop.slug}
                               </a>
                             </div>
                           </div>

@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://scanitprintit.in';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://scanitprintit.vercel.app';
 
     const cfPayload = {
       order_id:       `PD-${order.orderNumber}-${Date.now()}`,
