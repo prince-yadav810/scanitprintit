@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ord
 
     // Update order status
     const updatedOrder = await prisma.order.update({
-      where: { id: params.orderId },
+      where: { id: orderId },
       data: { status }
     });
 

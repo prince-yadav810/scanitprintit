@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine pricing tier
-    const tier = shop.pricingTiers.find(t => t.mode === mode) || shop.pricingTiers[0];
+    const tier = shop.pricingTiers.find((t: any) => t.mode === mode) || shop.pricingTiers[0];
     const pricePerPage = tier?.pricePerPage || 5.0;
 
     let totalDocumentPages = 0;
