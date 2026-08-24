@@ -39,3 +39,20 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# Agent
+agent/node_modules/
+agent/*.exe
+
+# Test files
+test_files/
+test-cloudinary.js
+
+# Product docs (internal)
+product_docs/
+
+# Misc scripts
+scripts/testAudit.mjs
+railway.json

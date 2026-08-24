@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ShopStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+}
+
+enum Role {
+  PLATFORM_ADMIN
+  SHOP_OWNER
+}
+
+enum OrderStatus {
+  DRAFT
+  AWAITING_PAYMENT
+  PAID_QUEUED
+  AWAITING_APPROVAL
+  PRINTING
+  PRINTED
+  NEEDS_ATTENTION
+  CANCELLED
+  CANCELLED_REFUNDED
+  EXPIRED
+}
+
+enum AgentStatus {
+  ONLINE
+  OFFLINE
+}
+
+enum PrintMode {
+  BW
+  COLOR
+}
+
+model Shop {
+  id                 String   @id @default(uuid())
+  name               String
+  slug               String   @unique
+  address            String?
+  status             ShopStatus @default(DRAFT)
+  autoPrintEnabled   Boolean  @default(false)
+  minimumOrderAmount Float    @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  pricingTiers       ShopPricingTier[]
+  orders             Order[]
+  agents             Agent[]
+  pairingCodes       PairingCode[]
+  user               User?
+}
+
+model ShopPricingTier {
+  id           String    @id @default(uuid())
+  shopId       String
+  mode         PrintMode
+  minPages     Int
+  maxPages     Int?
+  pricePerPage Float
+
+  shop         Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
+}
+
+model Order {
+  id                 String      @id @default(uuid())
+  orderNumber        String      @unique
+  shopId             String
+  status             OrderStatus @default(DRAFT)
+  paymentReference   String?     // Cashfree payment_id stored after webhook
+  cashfreeOrderId    String?     // Cashfree order_id used to create payment
+  totalAmount        Float       @default(0)
+  printSubtotal      Float       @default(0)
+  platformCharge     Float       @default(0)
+  pageCount          Int         @default(0)
+  settings           Json?       
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  shop               Shop        @relation(fields: [shopId], references: [id])
+  files              File[]
+
+  @@index([shopId])
+  @@index([status])
+  @@index([cashfreeOrderId])
+}
+
+model File {
+  id              String   @id @default(uuid())
+  orderId         String
+  originalName    String
+  cloudinaryUrl   String?
+  convertedPdfUrl String?
+  status          String   @default("UPLOADED")
+  expiresAt       DateTime
+
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model Agent {
+  id              String      @id @default(uuid())
+  shopId          String      @unique
+  tokenHash       String
+  status          AgentStatus @default(OFFLINE)
+  selectedPrinter String?
+  lastSeenAt      DateTime    @default(now())
+
+  shop            Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+}
+
+model PairingCode {
+  id        String   @id @default(uuid())
+  code      String   @unique // 6 digit code
+  shopId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  @@index([code])
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(SHOP_OWNER)
+  shopId    String?  @unique
+  shop      Shop?    @relation(fields: [shopId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
