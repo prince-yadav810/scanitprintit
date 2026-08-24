@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ 
       success: true,
-      redirectUrl: user.role === 'PLATFORM_ADMIN' ? '/admin/platform' : (user.shopId ? `/admin/shop` : '/admin/platform')
+      redirectUrl: user.role === 'PLATFORM_ADMIN' ? '/admin/platform' : (user.shopId ? `/admin/shop/${user.shopId}` : '/admin/platform')
     });
   } catch (error) {
     console.error('Login error:', error);
