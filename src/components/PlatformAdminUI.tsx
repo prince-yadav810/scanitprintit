@@ -66,7 +66,10 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
   };
 
   const showQRCode = async (shop: any) => {
-    const shopUrl = `${window.location.origin}/s/${shop.slug}`;
+    const baseUrl = typeof window !== 'undefined' && window.location.origin.includes('localhost') 
+      ? 'https://scanitprintit.in' 
+      : window.location.origin;
+    const shopUrl = `${baseUrl}/s/${shop.slug}`;
     try {
       const dataUrl = await QRCode.toDataURL(shopUrl, { margin: 2, scale: 10, color: { dark: '#1a1915', light: '#ffffff' } });
       setQrModal({ open: true, url: dataUrl, name: shop.name, shopUrl });
@@ -183,7 +186,11 @@ export default function PlatformAdminUI({ initialShops }: { initialShops: any[] 
                               <a href={`/owner/${shop.id}`} className="font-medium" style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{shop.name}</a>
                               {shop.isTestShop && <span className="badge badge-orange">TEST SHOP</span>}
                             </div>
-                            <div className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>/s/{shop.slug}</div>
+                            <div className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
+                              <a href={`https://scanitprintit.in/s/${shop.slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>
+                                https://scanitprintit.in/s/{shop.slug}
+                              </a>
+                            </div>
                           </div>
                         </td>
                         <td><span className="text-sm text-muted">{shop.user?.username || 'None'}</span></td>
