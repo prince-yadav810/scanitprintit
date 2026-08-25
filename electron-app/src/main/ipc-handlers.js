@@ -107,6 +107,14 @@ module.exports = {
       };
     });
 
+    ipcMain.handle('settings:getRemote', async () => {
+      try {
+        return await agent.getSettings();
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    });
+
     ipcMain.handle('settings:save', async (_, settings) => {
       // Save local settings to electron-store
       if ('selectedPrinter' in settings) store.set('selectedPrinter', settings.selectedPrinter);

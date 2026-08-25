@@ -7,7 +7,7 @@ const CF_BASE = process.env.CASHFREE_ENV === 'PRODUCTION'
 
 export async function POST(req: NextRequest) {
   try {
-    const { orderId } = await req.json();
+    const { orderId, customerName } = await req.json();
     if (!orderId) return NextResponse.json({ error: 'orderId required' }, { status: 400 });
 
     const order = await prisma.order.findUnique({
@@ -78,10 +78,13 @@ export async function POST(req: NextRequest) {
 
     const cfData = await cfRes.json();
 
-    // Store Cashfree order ID so we can look it up in the webhook
+    // Store Cashfree order ID + customer name
     await prisma.order.update({
       where: { id: order.id },
-      data:  { cashfreeOrderId: cfPayload.order_id },
+      data:  {
+        cashfreeOrderId: cfPayload.order_id,
+        ...(customerName?.trim() ? { customerName: customerName.trim() } : {}),
+      },
     });
 
     return NextResponse.json({ payment_session_id: cfData.payment_session_id });

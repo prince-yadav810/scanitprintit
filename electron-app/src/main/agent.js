@@ -275,4 +275,9 @@ module.exports = {
     const res = await apiFetch('/owner/settings', 'PATCH', settings);
     return res.json();
   },
+
+  async getSettings() {
+    const res = await apiFetch('/owner/settings', 'GET');
+    return res.json();
+  },
 };

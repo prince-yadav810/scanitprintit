@@ -22,6 +22,11 @@
       --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       --radius: 10px; --radius-sm: 6px;
     }
+    body.light-theme {
+      --bg: #f8f8fa; --bg-card: #ffffff; --bg-subtle: #f0f0f4; --bg-hover: #e8e8f0;
+      --border: #e2e2e8; --border-subtle: #ebebf0;
+      --text-primary: #18181b; --text-secondary: #52525b; --text-muted: #a1a1aa;
+    }
     body { font-family: var(--font); background: var(--bg); color: var(--text-primary); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; overflow: hidden; height: 100vh; }
     ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     
@@ -208,6 +213,9 @@
           <div class="nav-item" data-page="history" onclick="navigate('history')">
             <span class="nav-icon">📋</span> History
           </div>
+          <div class="nav-item" data-page="stats" onclick="navigate('stats')">
+            <span class="nav-icon">📈</span> Stats
+          </div>
           <div class="nav-item" data-page="settings" onclick="navigate('settings')">
             <span class="nav-icon">⚙️</span> Settings
           </div>
@@ -269,22 +277,6 @@
         <div class="page" id="page-history">
           <div class="card">
             <div class="section-header">
-              <div class="section-title">This Month's Performance</div>
-            </div>
-            <div class="summary-grid" style="margin-bottom:20px;">
-              <div class="stat-card"><div class="stat-label">Orders This Month</div><div class="stat-value" id="month-orders">—</div></div>
-              <div class="stat-card"><div class="stat-label">Pages This Month</div><div class="stat-value" id="month-pages">—</div></div>
-              <div class="stat-card"><div class="stat-label">Revenue This Month</div><div class="stat-value" id="month-revenue">—</div></div>
-              <div class="stat-card"><div class="stat-label">Avg Order Value</div><div class="stat-value" id="month-avg">—</div></div>
-            </div>
-            <div class="card-title">Last 30 Days — Daily Revenue (INR)</div>
-            <div class="chart-container" id="revenue-chart">
-              <div class="empty-state">Loading chart...</div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="section-header">
               <div class="section-title">Order History</div>
               <button class="btn btn-sm" onclick="exportCsv()">⬇ Export CSV</button>
             </div>
@@ -306,6 +298,31 @@
             </div>
             <div id="history-table-wrap">
               <div class="empty-state"><div class="spinner"></div><br>Loading history...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STATS PAGE -->
+        <div class="page" id="page-stats">
+          <div class="card">
+            <div class="section-header">
+              <div class="section-title">📈 This Month's Performance</div>
+            </div>
+            <div class="summary-grid" style="margin-bottom:20px;">
+              <div class="stat-card"><div class="stat-label">Orders This Month</div><div class="stat-value" id="month-orders">—</div></div>
+              <div class="stat-card"><div class="stat-label">Pages This Month</div><div class="stat-value" id="month-pages">—</div></div>
+              <div class="stat-card"><div class="stat-label">Revenue This Month</div><div class="stat-value" id="month-revenue">—</div></div>
+              <div class="stat-card"><div class="stat-label">Avg Order Value</div><div class="stat-value" id="month-avg">—</div></div>
+            </div>
+            <div class="card-title">Last 30 Days — Daily Revenue (INR)</div>
+            <div class="chart-container" id="revenue-chart">
+              <div class="empty-state">Loading chart...</div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:16px;">
+            <div class="section-header"><div class="section-title">Daily Orders (Last 30 Days)</div></div>
+            <div class="chart-container" id="orders-chart">
+              <div class="empty-state">Loading chart...</div>
             </div>
           </div>
         </div>
@@ -346,34 +363,44 @@
 
           <!-- Pricing -->
           <div class="card">
-            <div class="card-title">Pricing (per page, INR)</div>
+            <div class="section-header">
+              <div class="card-title" style="margin:0;">Pricing (per page, INR)</div>
+              <button class="btn btn-sm btn-primary" onclick="saveRemoteSettings()" id="btn-save-remote">💾 Save Pricing</button>
+            </div>
             <div class="settings-section">
               <div class="settings-row">
-                <div><div class="settings-label">B&W Price per Page</div></div>
-                <input type="number" id="price-bw" step="0.5" min="0" style="width:100px;" onchange="saveRemoteSettings()" />
+                <div><div class="settings-label">B&W Price per Page</div><div class="settings-desc" id="bw-current-price"></div></div>
+                <input type="number" id="price-bw" step="0.5" min="0" style="width:100px;" />
               </div>
               <div class="settings-row">
-                <div><div class="settings-label">Color Price per Page</div></div>
-                <input type="number" id="price-color" step="0.5" min="0" style="width:100px;" onchange="saveRemoteSettings()" />
+                <div><div class="settings-label">Color Price per Page</div><div class="settings-desc" id="color-current-price"></div></div>
+                <input type="number" id="price-color" step="0.5" min="0" style="width:100px;" />
               </div>
             </div>
           </div>
 
           <!-- Optional Features -->
           <div class="card">
-            <div class="card-title">Optional Features</div>
+            <div class="section-header">
+              <div class="card-title" style="margin:0;">Optional Features</div>
+              <button class="btn btn-sm btn-primary" onclick="saveLocalSettings()" id="btn-save-local">💾 Save</button>
+            </div>
             <div class="settings-section">
               <div class="settings-row">
-                <div><div class="settings-label">🔔 Sound Notification for New Orders</div><div class="settings-desc">Plays a sound when a new job arrives</div></div>
-                <label class="toggle"><input type="checkbox" id="toggle-sound" onchange="saveLocalSettings()"><div class="toggle-slider"></div></label>
+                <div><div class="settings-label">🌙 Dark Theme</div><div class="settings-desc">Toggle between dark and light interface</div></div>
+                <label class="toggle"><input type="checkbox" id="toggle-dark" onchange="applyTheme()"><div class="toggle-slider"></div></label>
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-label">🔔 Sound Notification for New Orders</div><div class="settings-desc">Plays a beep when a new job arrives</div></div>
+                <label class="toggle"><input type="checkbox" id="toggle-sound"><div class="toggle-slider"></div></label>
               </div>
               <div class="settings-row">
                 <div><div class="settings-label">🖨️ Printer Health Check</div><div class="settings-desc">Show ink/toner levels (supported printers only)</div></div>
-                <label class="toggle"><input type="checkbox" id="toggle-printer-health" onchange="saveLocalSettings()"><div class="toggle-slider"></div></label>
+                <label class="toggle"><input type="checkbox" id="toggle-printer-health"><div class="toggle-slider"></div></label>
               </div>
               <div class="settings-row">
                 <div><div class="settings-label">Auto-launch on Windows Startup</div><div class="settings-desc">Start the agent automatically when you log in</div></div>
-                <label class="toggle"><input type="checkbox" id="toggle-autolaunch" onchange="saveLocalSettings()"><div class="toggle-slider"></div></label>
+                <label class="toggle"><input type="checkbox" id="toggle-autolaunch"><div class="toggle-slider"></div></label>
               </div>
             </div>
           </div>
@@ -451,6 +478,7 @@ function navigate(page) {
   document.getElementById('page-' + page).classList.add('active');
   document.querySelector(`[data-page="${page}"]`).classList.add('active');
   if (page === 'history') loadHistory();
+  if (page === 'stats') loadMonthlyStats();
   if (page === 'settings') loadSettings();
 }
 
@@ -548,17 +576,19 @@ function renderOrderTable(wrapperId, orders) {
     const isDanger = ['NEEDS_ATTENTION'].includes(o.status);
     const isCancelled = o.status.startsWith('CANCELLED');
     const style = isCancelled ? 'text-decoration:line-through; opacity:0.5;' : '';
+    const name = o.customerName ? `<span style="font-weight:600;color:var(--text-primary);">${o.customerName}</span>` : '<span style="color:var(--text-muted);">—</span>';
     return `<tr class="${isDanger ? 'danger-row' : ''}" style="${style}">
       <td class="primary">#${o.orderNumber}</td>
+      <td>${name}</td>
       <td>${o.pageCount ?? '—'}</td>
-      <td>${o.settings?.mode || 'BW'} / ${o.settings?.copies || 1} copy</td>
+      <td>${o.settings?.mode || 'BW'} / ${o.settings?.copies || 1}x</td>
       <td>${formatINR(o.totalAmount)}</td>
       <td>${statusBadge(o.status)}</td>
       <td>${new Date(o.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
     </tr>`;
   }).join('');
   wrap.innerHTML = `<table>
-    <thead><tr><th>Order</th><th>Pages</th><th>Mode</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead>
+    <thead><tr><th>Order</th><th>Customer</th><th>Pages</th><th>Mode</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
@@ -585,10 +615,11 @@ function renderQueue(jobs) {
       ? `<span class="queue-chip chip-color">Color</span>`
       : `<span class="queue-chip chip-bw">B&W</span>`;
     const simChip = isSim ? `<span class="queue-chip chip-sim">SIM</span>` : '';
+    const customerTag = j.customerName ? `<span style="font-size:11px;color:var(--accent);font-weight:600;">👤 ${j.customerName}</span>` : '';
     return `<div class="queue-item ${isPrinting ? 'printing' : ''} ${isFailed ? 'failed' : ''} ${isSim ? 'simulated' : ''}">
       <div class="queue-status-dot" style="background:${dotColor};${isPrinting ? 'box-shadow:0 0 6px '+dotColor : ''}"></div>
       <div class="queue-info">
-        <div class="queue-order">#${j.orderNumber}</div>
+        <div class="queue-order">#${j.orderNumber} ${customerTag}</div>
         <div class="queue-file">${j.files?.[0]?.originalName || 'Unknown file'}</div>
       </div>
       <div class="queue-meta">
@@ -641,11 +672,12 @@ async function loadMonthlyStats() {
     document.getElementById('month-pages').textContent = data.totalPages ?? '—';
     document.getElementById('month-revenue').textContent = formatINR(data.totalRevenue);
     document.getElementById('month-avg').textContent = formatINR(data.avgOrderValue);
-    renderChart(data.dailyRevenue || []);
+    renderRevenueChart(data.dailyRevenue || []);
+    renderOrdersChart(data.dailyRevenue || []);
   } catch {}
 }
 
-function renderChart(days) {
+function renderRevenueChart(days) {
   const el = document.getElementById('revenue-chart');
   if (!days.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
   const max = Math.max(...days.map(d => d.revenue), 1);
@@ -655,6 +687,21 @@ function renderChart(days) {
     const isToday = d.date === today;
     return `<div class="chart-bar-wrap" title="₹${d.revenue.toFixed(0)} on ${d.date}">
       <div class="chart-bar ${isToday ? 'today' : ''}" style="height:${h}px;"></div>
+      <div class="chart-label">${d.date.slice(5)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderOrdersChart(days) {
+  const el = document.getElementById('orders-chart');
+  if (!el || !days.length) return;
+  const max = Math.max(...days.map(d => d.count), 1);
+  const today = new Date().toISOString().slice(0, 10);
+  el.innerHTML = days.map(d => {
+    const h = Math.max(4, Math.round((d.count / max) * 120));
+    const isToday = d.date === today;
+    return `<div class="chart-bar-wrap" title="${d.count} orders on ${d.date}">
+      <div class="chart-bar ${isToday ? 'today' : ''}" style="height:${h}px; background: var(--success);"></div>
       <div class="chart-label">${d.date.slice(5)}</div>
     </div>`;
   }).join('');
@@ -676,6 +723,7 @@ async function loadSettings() {
   document.getElementById('toggle-sound').checked = s.soundEnabled;
   document.getElementById('toggle-printer-health').checked = s.printerHealthEnabled;
   document.getElementById('toggle-autolaunch').checked = s.autoLaunch;
+  document.getElementById('toggle-dark').checked = !document.body.classList.contains('light-theme');
 
   // Shop info
   const auth = await window.api.getAuthState();
@@ -689,16 +737,49 @@ async function loadSettings() {
     document.getElementById('qr-preview-wrap').innerHTML = `<div class="qr-preview"><img src="${qr.dataUrl}" style="width:160px;height:160px;display:block;"></div>`;
   }
 
-  // Printers
+  // Printers — show connected printer in status bar too
   const ps = await window.api.getPrinters();
   const sel = document.getElementById('printer-select');
   sel.innerHTML = '<option value="">Use System Default</option>';
-  (ps.printers || []).forEach(p => {
+  const printers = ps.printers || [];
+  printers.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p; opt.textContent = p;
     if (p === s.selectedPrinter) opt.selected = true;
     sel.appendChild(opt);
   });
+
+  // Update printer status dot + label
+  const printerDot = document.getElementById('dot-printer');
+  const printerLbl = document.getElementById('label-printer');
+  if (printers.length > 0) {
+    const activePrinter = s.selectedPrinter || printers[0];
+    printerDot.className = 'dot green';
+    printerLbl.textContent = activePrinter.length > 20 ? activePrinter.slice(0, 20) + '…' : activePrinter;
+  } else {
+    printerDot.className = 'dot red';
+    printerLbl.textContent = 'No Printer';
+  }
+
+  // Load remote settings (current pricing)
+  try {
+    const remote = await window.api.getRemoteSettings();
+    if (remote.pricingTiers) {
+      const bw = remote.pricingTiers.find(t => t.mode === 'BW');
+      const color = remote.pricingTiers.find(t => t.mode === 'COLOR');
+      if (bw) {
+        document.getElementById('price-bw').value = bw.pricePerPage;
+        document.getElementById('bw-current-price').textContent = `Current: ₹${bw.pricePerPage}/page`;
+      }
+      if (color) {
+        document.getElementById('price-color').value = color.pricePerPage;
+        document.getElementById('color-current-price').textContent = `Current: ₹${color.pricePerPage}/page`;
+      }
+    }
+    if (document.getElementById('toggle-autoprint')) {
+      document.getElementById('toggle-autoprint').checked = remote.autoPrintEnabled ?? true;
+    }
+  } catch (e) { console.warn('Could not load remote settings', e); }
 }
 
 async function saveLocalSettings() {
@@ -707,17 +788,50 @@ async function saveLocalSettings() {
     printerHealthEnabled: document.getElementById('toggle-printer-health').checked,
     autoLaunch:           document.getElementById('toggle-autolaunch').checked,
     selectedPrinter:      document.getElementById('printer-select').value,
+    darkTheme:            document.getElementById('toggle-dark').checked,
   });
+  const btn = document.getElementById('btn-save-local');
+  btn.textContent = '✅ Saved!';
+  setTimeout(() => btn.textContent = '💾 Save', 2000);
 }
 
 async function saveRemoteSettings() {
+  const bwVal = parseFloat(document.getElementById('price-bw').value) || 0;
+  const colorVal = parseFloat(document.getElementById('price-color').value) || 0;
   await window.api.saveSettings({
     remote: {
-      autoPrintEnabled: document.getElementById('toggle-autoprint').checked,
-      bwPricePerPage:   parseFloat(document.getElementById('price-bw').value) || 0,
-      colorPricePerPage: parseFloat(document.getElementById('price-color').value) || 0,
+      autoPrintEnabled:  document.getElementById('toggle-autoprint') ? document.getElementById('toggle-autoprint').checked : true,
+      bwPricePerPage:    bwVal,
+      colorPricePerPage: colorVal,
     }
   });
+  document.getElementById('bw-current-price').textContent = `Current: ₹${bwVal}/page`;
+  document.getElementById('color-current-price').textContent = `Current: ₹${colorVal}/page`;
+  const btn = document.getElementById('btn-save-remote');
+  btn.textContent = '✅ Saved!';
+  setTimeout(() => btn.textContent = '💾 Save Pricing', 2000);
+}
+
+function applyTheme() {
+  const isDark = document.getElementById('toggle-dark').checked;
+  document.body.classList.toggle('light-theme', !isDark);
+}
+
+// ─── Sound Notification (Web Audio API — no file needed) ──────────────────────
+function playNotificationBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.frequency.setValueAtTime(880, ctx.currentTime);     // A5 note
+    oscillator.frequency.setValueAtTime(1108, ctx.currentTime + 0.1); // C#6
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.5);
+  } catch (e) { console.warn('Audio error:', e); }
 }
 
 async function downloadQr() {
@@ -738,7 +852,10 @@ function addAlert(msg) {
 window.api.onConnectivityChange(updateConnectivity);
 
 window.api.onNewJob((job) => {
-  addAlert(`📥 New job #${job.orderNumber} arrived (${job.pageCount} pages)`);
+  addAlert(`📥 New job #${job.orderNumber} arrived (${job.pageCount} pages)${job.customerName ? ' — ' + job.customerName : ''}`);
+  // Play sound if enabled
+  const soundEnabled = document.getElementById('toggle-sound')?.checked;
+  if (soundEnabled) playNotificationBeep();
   loadDashboard();
 });
 
@@ -759,11 +876,36 @@ async function init() {
   document.getElementById('pair-screen').style.display = 'none';
   document.getElementById('main-app').style.display = 'flex';
 
+  // Restore theme
+  const s = await window.api.getSettings();
+  const isDark = s.darkTheme !== false; // default dark
+  document.body.classList.toggle('light-theme', !isDark);
+  if (document.getElementById('toggle-dark')) {
+    document.getElementById('toggle-dark').checked = isDark;
+  }
+
   // Date display
   document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
   await loadDashboard();
   await loadMonthlyStats();
+
+  // Load printer status on startup
+  try {
+    const ps = await window.api.getPrinters();
+    const savedSettings = await window.api.getSettings();
+    const printers = ps.printers || [];
+    const printerDot = document.getElementById('dot-printer');
+    const printerLbl = document.getElementById('label-printer');
+    if (printers.length > 0) {
+      const activePrinter = savedSettings.selectedPrinter || printers[0];
+      printerDot.className = 'dot green';
+      printerLbl.textContent = activePrinter.length > 22 ? activePrinter.slice(0, 22) + '…' : activePrinter;
+    } else {
+      printerDot.className = 'dot red';
+      printerLbl.textContent = 'No Printer';
+    }
+  } catch {}
 
   // Refresh dashboard every 10s
   setInterval(loadDashboard, 10000);

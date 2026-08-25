@@ -50,10 +50,12 @@ function StatusBlock({ status }: { status: string }) {
 
 /* ─── Main component ────────────────────────────────────────────────── */
 export default function CheckoutUI({ order }: { order: any }) {
-  const [status,    setStatus]    = useState(order.status);
-  const [copied,    setCopied]    = useState(false);
-  const [paying,    setPaying]    = useState(false);
-  const [payError,  setPayError]  = useState('');
+  const [status,      setStatus]      = useState(order.status);
+  const [copied,      setCopied]      = useState(false);
+  const [paying,      setPaying]      = useState(false);
+  const [payError,    setPayError]    = useState('');
+  const [customerName, setCustomerName] = useState(order.customerName ?? '');
+  const [nameSaved,   setNameSaved]   = useState(!!order.customerName);
 
   // Poll status from server every 5s while order is not terminal
   const isTerminal = ['PRINTED', 'SIMULATED_PRINTED', 'CANCELLED', 'CANCELLED_REFUNDED', 'EXPIRED'].includes(status);
@@ -81,17 +83,21 @@ export default function CheckoutUI({ order }: { order: any }) {
   };
 
   const handlePay = async () => {
+    if (!customerName.trim()) {
+      setPayError('Please enter your name before paying.');
+      return;
+    }
     setPaying(true);
     setPayError('');
     try {
       // 1. Load Cashfree JS
       await loadCashfreeSDK();
 
-      // 2. Create payment session on our backend
+      // 2. Create payment session (also saves the customer name)
       const res  = await fetch('/api/payment/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order.id }),
+        body: JSON.stringify({ orderId: order.id, customerName: customerName.trim() }),
       });
       const data = await res.json();
 
@@ -210,6 +216,20 @@ export default function CheckoutUI({ order }: { order: any }) {
       {showPayButton && (
         <div className="price-bar">
           <div className="price-bar-inner" style={{ flexDirection: 'column', gap: 10 }}>
+            {/* Name input */}
+            <div style={{ width: '100%' }}>
+              <input
+                type="text"
+                placeholder="Your name (for pickup verification)"
+                value={customerName}
+                onChange={e => { setCustomerName(e.target.value); setNameSaved(false); }}
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)', background: 'var(--bg-muted)',
+                  color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none',
+                }}
+              />
+            </div>
             {payError && (
               <div className="flex items-center gap-2" style={{ color: 'var(--danger)', fontSize: '0.84rem', width: '100%' }}>
                 <AlertCircle size={14} /> {payError}

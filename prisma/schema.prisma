@@ -78,6 +78,7 @@ model Order {
   id                 String      @id @default(uuid())
   orderNumber        String      @unique
   shopId             String
+  customerName       String?     // Name of customer for handover verification
   status             OrderStatus @default(DRAFT)
   paymentReference   String?     // Cashfree payment_id stored after webhook
   cashfreeOrderId    String?     // Cashfree order_id used to create payment
