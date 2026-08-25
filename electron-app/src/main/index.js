@@ -1,8 +1,14 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell, dialog } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
 const agent = require('./agent');
 const ipcHandlers = require('./ipc-handlers');
+
+// ─── Crash visibility (dev) ───────────────────────────────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT:', err);
+  dialog.showErrorBox('Agent Error', err.message + '\n\n' + err.stack);
+});
 
 const store = new Store();
 
@@ -27,10 +33,26 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  const rendererPath = path.join(__dirname, '../../src/renderer/index.html');
+  const fallbackPath = path.join(__dirname, '../renderer/index.html');
+  const htmlPath = require('fs').existsSync(rendererPath) ? rendererPath : fallbackPath;
+  mainWindow.loadFile(htmlPath);
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+  });
+
+  // Show errors in the renderer
+  mainWindow.webContents.on('did-fail-load', (e, code, desc) => {
+    console.error('Renderer failed to load:', code, desc);
+    dialog.showErrorBox('Load Error', `Failed to load UI: ${desc} (${code})\nPath: ${htmlPath}`);
+  });
+
+  // Dev tools on Ctrl+Shift+I
+  mainWindow.webContents.on('before-input-event', (e, input) => {
+    if (input.control && input.shift && input.key === 'I') {
+      mainWindow.webContents.toggleDevTools();
+    }
   });
 
   // Minimize to tray on close — do NOT quit the agent
@@ -44,8 +66,16 @@ function createWindow() {
 
 // ─── System Tray ─────────────────────────────────────────────────────────────
 function createTray() {
-  const iconPath = path.join(__dirname, '../../resources/tray-icon.png');
-  tray = new Tray(nativeImage.createFromPath(iconPath));
+  // Resolve icon with fallbacks for different working dirs
+  const iconPaths = [
+    path.join(__dirname, '../../resources/tray-icon.png'),
+    path.join(__dirname, '../../../resources/tray-icon.png'),
+    path.join(app.getAppPath(), 'resources/tray-icon.png'),
+  ];
+  const fs = require('fs');
+  const iconFile = iconPaths.find(p => fs.existsSync(p));
+  const icon = iconFile ? nativeImage.createFromPath(iconFile) : nativeImage.createEmpty();
+  tray = new Tray(icon);
 
   const contextMenu = Menu.buildFromTemplate([
     {
