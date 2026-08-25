@@ -16,6 +16,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+
+    // Already paid — block creating another payment session
+    if (order.paymentReference) {
+      return NextResponse.json({ error: 'This order has already been paid.' }, { status: 409 });
+    }
+
     if (order.status !== 'AWAITING_PAYMENT') {
       return NextResponse.json({ error: 'Order is not in a payable state' }, { status: 409 });
     }

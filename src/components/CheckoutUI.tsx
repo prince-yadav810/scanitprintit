@@ -89,6 +89,19 @@ export default function CheckoutUI({ order }: { order: any }) {
         body: JSON.stringify({ orderId: order.id }),
       });
       const data = await res.json();
+
+      // 409 = order already paid (fallback updated it before this click)
+      if (res.status === 409 && data.error?.includes('already been paid')) {
+        // Refresh status from server — the order moved to PAID_QUEUED/AWAITING_APPROVAL
+        const statusRes = await fetch(`/api/orders/${order.id}/status`);
+        if (statusRes.ok) {
+          const sd = await statusRes.json();
+          if (sd.status) setStatus(sd.status);
+        }
+        setPaying(false);
+        return;
+      }
+
       if (!res.ok || !data.payment_session_id) {
         setPayError(data.error || 'Could not initiate payment. Please try again.');
         setPaying(false);
