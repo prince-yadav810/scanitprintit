@@ -180,13 +180,6 @@
     <div class="titlebar">
       <img src="../../resources/logo.png" alt="" class="titlebar-logo" onerror="this.style.display='none'">
       <span class="titlebar-title" id="titlebar-shop">ScanItPrintIt Agent</span>
-      <div class="status-dots">
-        <div class="dot" id="dot-internet" title="Internet"></div>
-        <span class="dot-label" id="label-internet">Connecting...</span>
-        <div class="separator"></div>
-        <div class="dot" id="dot-printer" title="Printer"></div>
-        <span class="dot-label" id="label-printer">Checking...</span>
-      </div>
     </div>
 
     <!-- Offline banner -->
@@ -223,6 +216,16 @@
         <div class="sidebar-bottom">
           <div class="nav-item" style="font-size:11px; color: var(--text-muted);" id="agent-status-label">
             <span class="nav-icon">🟢</span> Agent Running
+          </div>
+          <div class="status-dots" style="padding: 8px 14px; flex-direction: column; align-items: flex-start; gap: 8px; border-top: 1px solid var(--border); margin-top: 8px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div class="dot" id="dot-internet" title="Internet"></div>
+              <span class="dot-label" id="label-internet">Connecting...</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+              <div class="dot" id="dot-printer" title="Printer" style="flex-shrink: 0;"></div>
+              <span class="dot-label" id="label-printer" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;">Checking...</span>
+            </div>
           </div>
         </div>
       </div>
@@ -817,20 +820,11 @@ function applyTheme() {
   document.body.classList.toggle('light-theme', !isDark);
 }
 
-// ─── Sound Notification (Web Audio API — no file needed) ──────────────────────
+// ─── Sound Notification (HTML5 Audio) ────────────────────────────────────────
 function playNotificationBeep() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    oscillator.frequency.setValueAtTime(880, ctx.currentTime);     // A5 note
-    oscillator.frequency.setValueAtTime(1108, ctx.currentTime + 0.1); // C#6
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.5);
+    const audio = new Audio('../../resources/notify.mp3');
+    audio.play().catch(e => console.warn('Audio play blocked or failed:', e));
   } catch (e) { console.warn('Audio error:', e); }
 }
 
