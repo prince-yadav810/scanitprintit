@@ -42,12 +42,12 @@ export async function GET(req: NextRequest) {
       data: { lastSeenAt: new Date(), status: 'ONLINE' },
     });
 
-    // Today's orders (exclude DRAFT / AWAITING_PAYMENT)
+    // Today's orders (exclude only truly unpaid / system draft states)
     const todayOrders = await prisma.order.findMany({
       where: {
         shopId,
         createdAt: { gte: start, lt: end },
-        status: { notIn: ['DRAFT', 'AWAITING_PAYMENT', 'EXPIRED'] },
+        status: { notIn: ['DRAFT', 'EXPIRED'] },
       },
       include: { files: { select: { originalName: true } } },
       orderBy: { createdAt: 'desc' },
