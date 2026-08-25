@@ -30,6 +30,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false, // Security: never expose Node to renderer
+      autoplayPolicy: 'no-user-gesture-required', // Allow audio to play automatically
     },
   });
 
