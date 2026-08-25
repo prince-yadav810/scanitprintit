@@ -55,17 +55,22 @@ export default function CheckoutUI({ order }: { order: any }) {
   const [paying,    setPaying]    = useState(false);
   const [payError,  setPayError]  = useState('');
 
-  // Reload status from server every 5s while order is not terminal
-  const isTerminal = ['PRINTED', 'CANCELLED', 'CANCELLED_REFUNDED', 'EXPIRED'].includes(status);
+  // Poll status from server every 5s while order is not terminal
+  const isTerminal = ['PRINTED', 'SIMULATED_PRINTED', 'CANCELLED', 'CANCELLED_REFUNDED', 'EXPIRED'].includes(status);
+  
+  const checkStatus = async () => {
+    const res  = await fetch(`/api/orders/${order.id}/status`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status) setStatus(data.status);
+    }
+  };
+
   useEffect(() => {
     if (isTerminal) return;
-    const id = setInterval(async () => {
-      const res  = await fetch(`/api/orders/${order.id}/status`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status) setStatus(data.status);
-      }
-    }, 5000);
+    // Check immediately on mount (catches the payment redirect instantly)
+    checkStatus();
+    const id = setInterval(checkStatus, 5000);
     return () => clearInterval(id);
   }, [order.id, isTerminal]);
 
