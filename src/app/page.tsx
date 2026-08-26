@@ -793,7 +793,7 @@ export default function LandingPage() {
           <div className="footer-links">
             <a href="/login">Shop Login</a>
             <a href="https://wa.me/918591442334" target="_blank" rel="noreferrer">+91 85914 42334</a>
-            <a href="mailto:support@scanitprintit.in">Email</a>
+            <a href="mailto:princeyadav810py@gmail.com">Email</a>
           </div>
         </div>
       </footer>
