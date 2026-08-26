@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, X, QrCode, Download, AlertCircle, Store, TrendingUp, Cpu, Activity, Settings, ChevronRight, Calendar, Clock } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -154,10 +154,10 @@ function QrModal({ shop, onClose }: { shop: any; onClose: () => void }) {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const shopUrl = `https://www.scanitprintit.in/s/${shop.slug}`;
 
-  useState(() => {
+  useEffect(() => {
     QRCode.toDataURL(shopUrl, { margin: 2, scale: 12, color: { dark: '#1a1915', light: '#ffffff' } })
       .then(setQrUrl).catch(() => {});
-  });
+  }, [shopUrl]);
 
   return (
     <div className="ad-modal-overlay" onClick={onClose}>

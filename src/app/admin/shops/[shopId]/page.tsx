@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import ShopDetailUI from '@/components/ShopDetailUI';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ShopDetailPage({ params }: { params: Promise<{ shopId: string }> }) {
   const { shopId } = await params;
 

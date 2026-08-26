@@ -1,6 +1,9 @@
 import { prisma } from '@/lib/prisma';
 import PlatformAdminUI from '@/components/PlatformAdminUI';
 
+// Force dynamic rendering — this page reads auth session and live DB data
+export const dynamic = 'force-dynamic';
+
 export default async function PlatformAdminPage() {
   const PAID = ['PAID_QUEUED', 'PRINTING', 'PRINTED', 'SIMULATED_PRINTED'] as const;
 

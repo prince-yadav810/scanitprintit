@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Store, Cpu, Calendar, Clock, TrendingUp, Activity, FileText, QrCode, Download, Settings, X, AlertCircle, ToggleLeft, ToggleRight, CheckCircle } from 'lucide-react';
 import QRCode from 'qrcode';
 
