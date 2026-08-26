@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Printer, FileUp, CreditCard, CheckCircle, Zap, ShieldCheck, BarChart2, Timer, Smartphone, Infinity } from 'lucide-react';
 import HowItWorksJourney from '@/components/HowItWorksJourney';
+import WhyScanItPrintIt from '@/components/WhyScanItPrintIt';
 
 export const metadata: Metadata = {
   title: 'ScanItPrintIt — Smart Print Automation for Xerox & Copy Shops',
@@ -659,47 +660,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Why us ── */}
-      <section className="section" id="why" style={{ background: '#FFFFFF' }}>
-        <div className="section-inner">
-          <div className="kicker reveal">Why ScanItPrintIt</div>
-          <h2 className="section-h2 reveal">The print shop upgrade<br />that pays for itself.</h2>
-          <p className="section-lead reveal">
-            Compare us to buying a kiosk (₹3–5 lakh) or managing files on pen drives (slow, messy, no records).
-          </p>
-          <div className="reasons-grid reveal">
-            <div className="reason">
-              <div className="reason-icon"><Printer size={18} /></div>
-              <h3>Use your existing printer</h3>
-              <p>No new hardware. If your printer is on Windows, it works. We install a small background agent — nothing more.</p>
-            </div>
-            <div className="reason">
-              <div className="reason-icon"><CheckCircle size={18} /></div>
-              <h3>Zero revenue share</h3>
-              <p>₹299/month flat. Not per-print, not a percentage. Customer payment lands in your account — we never touch it.</p>
-            </div>
-            <div className="reason">
-              <div className="reason-icon"><Zap size={18} /></div>
-              <h3>Staff off the computer</h3>
-              <p>Customers set all options on their phone. Your team stays free for finishing, cutting, and actual customer service.</p>
-            </div>
-            <div className="reason">
-              <div className="reason-icon"><ShieldCheck size={18} /></div>
-              <h3>Files deleted after print</h3>
-              <p>Documents are stored only long enough to print, then wiped. We don't keep customer files. Privacy by design.</p>
-            </div>
-            <div className="reason">
-              <div className="reason-icon"><BarChart2 size={18} /></div>
-              <h3>Real-time revenue tracking</h3>
-              <p>See today's jobs, earnings, and order history from your dashboard — or from the agent window on your counter PC.</p>
-            </div>
-            <div className="reason">
-              <div className="reason-icon"><Timer size={18} /></div>
-              <h3>Setup in under 2 minutes</h3>
-              <p>Register your shop, install the Windows agent, paste the pairing code. Done. Your QR is ready to stick on the counter.</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <WhyScanItPrintIt />
 
       {/* ── Pricing ── */}
       <section className="section grid-bg" id="pricing">
