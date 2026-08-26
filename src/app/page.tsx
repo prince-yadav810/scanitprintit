@@ -202,7 +202,7 @@ export default function LandingPage() {
           .hero-video-wrapper {
             position: relative; right: auto; top: auto;
             transform: none; width: 100%; max-width: 100%;
-            margin-top: 48px; margin-bottom: 24px;
+            margin-top: 0; margin-bottom: 40px;
           }
         }
 
@@ -535,6 +535,18 @@ export default function LandingPage() {
 
       {/* ── Hero ── */}
       <header className="hero grid-bg">
+        {/* Video on the right half (moves to top on mobile) */}
+        <div className="hero-video-wrapper">
+          <video 
+            src="/hero-video.mp4" 
+            autoPlay 
+            loop 
+            muted 
+            playsInline 
+            style={{ width: '100%', display: 'block' }} 
+          />
+        </div>
+
         <div style={{ maxWidth: 1200, margin: '0 auto', width: '100%', position: 'relative', zIndex: 1 }}>
           <div className="hero-pill">
             <span className="hero-pill-dot" />
@@ -582,18 +594,6 @@ export default function LandingPage() {
               ₹299 / month
             </div>
           </div>
-        </div>
-
-        {/* Video on the right half */}
-        <div className="hero-video-wrapper">
-          <video 
-            src="/hero-video.mp4" 
-            autoPlay 
-            loop 
-            muted 
-            playsInline 
-            style={{ width: '100%', display: 'block' }} 
-          />
         </div>
       </header>
 
