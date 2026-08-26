@@ -588,7 +588,7 @@ export default function LandingPage() {
           <h2 className="section-h2 reveal">From phone to paper in 60 seconds.</h2>
           <p className="section-lead reveal">No app. No USB. No shouting file names across the counter.</p>
 
-          <div className="reveal">
+          <div style={{ marginTop: '2rem' }}>
             <HowItWorksVideo />
           </div>
         </div>
