@@ -192,15 +192,15 @@ export default function LandingPage() {
           box-shadow: 0 24px 48px rgba(26,25,21,0.08);
           border: 1px solid var(--border);
           animation: fadeUp 1.2s 0.5s ease both;
-          margin-top: -80px; /* nudges it up */
+          margin-top: -140px; /* nudged significantly higher */
         }
         .hero-content-wrapper {
-          max-width: 1200px; margin: 0 auto; width: 100%;
+          max-width: 1240px; margin: 0 auto; width: 100%;
           position: relative; z-index: 1;
-          display: flex; align-items: center; justify-content: space-between; gap: 60px;
+          display: flex; align-items: center; justify-content: space-between; gap: 40px;
         }
-        .hero-text-side { flex: 1; max-width: 600px; }
-        .hero-video-side { flex: 1; max-width: 560px; }
+        .hero-text-side { flex: 1; max-width: 540px; }
+        .hero-video-side { flex: 1.15; max-width: 660px; }
         
         @media (max-width: 900px) {
           .hero { padding-bottom: 40px; }
