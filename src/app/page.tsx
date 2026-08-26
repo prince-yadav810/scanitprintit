@@ -186,24 +186,28 @@ export default function LandingPage() {
 
         /* ── Hero Video (Right Half) ── */
         .hero-video-wrapper {
-          position: absolute; right: clamp(20px, 8vw, 80px); top: 50%;
-          transform: translateY(-50%);
-          width: 45%;
-          max-width: 560px;
+          width: 100%;
           border-radius: 24px;
           overflow: hidden;
           box-shadow: 0 24px 48px rgba(26,25,21,0.08);
           border: 1px solid var(--border);
           animation: fadeUp 1.2s 0.5s ease both;
-          z-index: 10;
         }
+        .hero-content-wrapper {
+          max-width: 1200px; margin: 0 auto; width: 100%;
+          position: relative; z-index: 1;
+          display: flex; align-items: center; justify-content: space-between; gap: 60px;
+        }
+        .hero-text-side { flex: 1; max-width: 600px; }
+        .hero-video-side { flex: 1; max-width: 560px; }
+        
         @media (max-width: 900px) {
           .hero { padding-bottom: 40px; }
-          .hero-video-wrapper {
-            position: relative; right: auto; top: auto;
-            transform: none; width: 100%; max-width: 100%;
-            margin-top: 0; margin-bottom: 40px;
+          .hero-content-wrapper {
+            flex-direction: column-reverse;
+            gap: 40px;
           }
+          .hero-text-side, .hero-video-side { max-width: 100%; }
         }
 
         /* ── How it works ── */
@@ -535,63 +539,66 @@ export default function LandingPage() {
 
       {/* ── Hero ── */}
       <header className="hero grid-bg">
-        {/* Video on the right half (moves to top on mobile) */}
-        <div className="hero-video-wrapper">
-          <video 
-            src="/hero-video.mp4" 
-            autoPlay 
-            loop 
-            muted 
-            playsInline 
-            style={{ width: '100%', display: 'block' }} 
-          />
-        </div>
+        <div className="hero-content-wrapper">
+          <div className="hero-text-side">
+            <div className="hero-pill">
+              <span className="hero-pill-dot" />
+              Built for Indian copy shops & cyber cafes
+            </div>
 
-        <div style={{ maxWidth: 1200, margin: '0 auto', width: '100%', position: 'relative', zIndex: 1 }}>
-          <div className="hero-pill">
-            <span className="hero-pill-dot" />
-            Built for Indian copy shops & cyber cafes
+            <h1 className="hero-h1">
+              Your printer.<br />
+              <em>Smarter</em> queue.<br />
+              Zero pen drives.
+            </h1>
+
+            <p className="hero-sub">
+              Customers scan your QR, upload files directly from their phone, and pay online.
+              Your Windows PC prints automatically — no pen drives, no manual transfers, no staff needed at the keyboard.
+            </p>
+
+            <div className="hero-actions">
+              <a href="https://wa.me/918591442334?text=Hi%2C%20I%27m%20interested%20in%20ScanItPrintIt%20for%20my%20print%20shop.%20Please%20tell%20me%20more." target="_blank" rel="noreferrer" className="btn-primary">
+                Start Free Trial →
+              </a>
+              <a href="#how" className="btn-ghost">
+                See how it works
+              </a>
+            </div>
+
+            <div className="hero-proof">
+              <div className="hero-proof-item">
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm10.293 4.293a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2-2a1 1 0 1 1 1.414-1.414L6.5 8.586l4.293-4.293a1 1 0 0 1 1.414 0z"/></svg>
+                No app install for customers
+              </div>
+              <div className="hero-divider" />
+              <div className="hero-proof-item">
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm10.293 4.293a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2-2a1 1 0 1 1 1.414-1.414L6.5 8.586l4.293-4.293a1 1 0 0 1 1.414 0z"/></svg>
+                Works with your existing printer
+              </div>
+              <div className="hero-divider" />
+              <div className="hero-proof-item">
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm10.293 4.293a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2-2a1 1 0 1 1 1.414-1.414L6.5 8.586l4.293-4.293a1 1 0 0 1 1.414 0z"/></svg>
+                100% revenue stays with you
+              </div>
+              <div className="hero-divider" />
+              <div className="hero-proof-item">
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm10.293 4.293a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2-2a1 1 0 1 1 1.414-1.414L6.5 8.586l4.293-4.293a1 1 0 0 1 1.414 0z"/></svg>
+                ₹299 / month
+              </div>
+            </div>
           </div>
 
-          <h1 className="hero-h1">
-            Your printer.<br />
-            <em>Smarter</em> queue.<br />
-            Zero pen drives.
-          </h1>
-
-          <p className="hero-sub">
-            Customers scan your QR, upload files directly from their phone, and pay online.
-            Your Windows PC prints automatically — no pen drives, no manual transfers, no staff needed at the keyboard.
-          </p>
-
-          <div className="hero-actions">
-            <a href="https://wa.me/918591442334?text=Hi%2C%20I%27m%20interested%20in%20ScanItPrintIt%20for%20my%20print%20shop.%20Please%20tell%20me%20more." target="_blank" rel="noreferrer" className="btn-primary">
-              Start Free Trial →
-            </a>
-            <a href="#how" className="btn-ghost">
-              See how it works
-            </a>
-          </div>
-
-          <div className="hero-proof">
-            <div className="hero-proof-item">
-              <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm10.293 4.293a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2-2a1 1 0 1 1 1.414-1.414L6.5 8.586l4.293-4.293a1 1 0 0 1 1.414 0z"/></svg>
-              No app install for customers
-            </div>
-            <div className="hero-divider" />
-            <div className="hero-proof-item">
-              <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm10.293 4.293a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2-2a1 1 0 1 1 1.414-1.414L6.5 8.586l4.293-4.293a1 1 0 0 1 1.414 0z"/></svg>
-              Works with your existing printer
-            </div>
-            <div className="hero-divider" />
-            <div className="hero-proof-item">
-              <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm10.293 4.293a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2-2a1 1 0 1 1 1.414-1.414L6.5 8.586l4.293-4.293a1 1 0 0 1 1.414 0z"/></svg>
-              100% revenue stays with you
-            </div>
-            <div className="hero-divider" />
-            <div className="hero-proof-item">
-              <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm10.293 4.293a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2-2a1 1 0 1 1 1.414-1.414L6.5 8.586l4.293-4.293a1 1 0 0 1 1.414 0z"/></svg>
-              ₹299 / month
+          <div className="hero-video-side">
+            <div className="hero-video-wrapper">
+              <video 
+                src="/hero-video.mp4" 
+                autoPlay 
+                loop 
+                muted 
+                playsInline 
+                style={{ width: '100%', display: 'block' }} 
+              />
             </div>
           </div>
         </div>
