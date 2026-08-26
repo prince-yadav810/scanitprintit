@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import AdminShopUI from '@/components/AdminShopUI';
 import { getSession } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminShopPage({ params }: { params: Promise<{ shopId: string }> }) {
   const { shopId } = await params;
   const session = await getSession();
@@ -16,6 +18,8 @@ export default async function AdminShopPage({ params }: { params: Promise<{ shop
         include: { files: true },
       },
       agents: true,
+      pricingTiers: true,
+      user: { select: { username: true } },
     },
   });
 

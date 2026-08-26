@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { hashPassword } from '@/lib/passwords';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ shopId: string }> }) {
   try {
@@ -30,6 +31,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sh
           { shopId, mode: 'COLOR', minPages: 1, pricePerPage: parseFloat(body.colorPricePerPage) || 10 },
         ],
       });
+    }
+
+    // Reset owner password
+    if (body.newPassword) {
+      const hashed = await hashPassword(body.newPassword);
+      await prisma.user.updateMany({ where: { shopId }, data: { password: hashed } });
     }
 
     return NextResponse.json({ success: true });

@@ -134,6 +134,8 @@ function SettingsPanel({ shop }: { shop: any }) {
   const [simulation, setSimulation] = useState(shop.simulationEnabled);
   const [isTest, setIsTest] = useState(shop.isTestShop);
   const [status, setStatus] = useState(shop.status);
+  const [newPassword, setNewPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -141,21 +143,48 @@ function SettingsPanel({ shop }: { shop: any }) {
   const save = async () => {
     setSaving(true); setSaved(false); setError('');
     try {
+      const body: Record<string, unknown> = { bwPricePerPage: bw, colorPricePerPage: color, autoPrintEnabled: autoPrint, simulationEnabled: simulation, isTestShop: isTest, status };
+      if (newPassword.trim()) body.newPassword = newPassword.trim();
       const res = await fetch(`/api/admin/shops/${shop.id}/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bwPricePerPage: bw, colorPricePerPage: color, autoPrintEnabled: autoPrint, simulationEnabled: simulation, isTestShop: isTest, status }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (data.success) setSaved(true);
+      if (data.success) { setSaved(true); setNewPassword(''); setTimeout(() => setSaved(false), 3000); }
       else setError(data.error || 'Failed to save');
     } catch { setError('Network error'); }
     setSaving(false);
-    if (saved) setTimeout(() => setSaved(false), 3000);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {/* Owner Credentials */}
+      <div style={{ background: '#F9F8F6', border: '1px solid #E8E5DE', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Owner Login Credentials</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ fontSize: 13, color: '#6B6860' }}>Username</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#1A1915', fontFamily: 'monospace', background: '#FFFFFF', padding: '3px 10px', borderRadius: 6, border: '1px solid #E8E5DE' }}>{shop.user?.username || '—'}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 4 }}>Set New Password</label>
+            <input
+              type={showPw ? 'text' : 'password'}
+              className="ad-input"
+              placeholder="Leave blank to keep existing"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+          <button onClick={() => setShowPw(!showPw)} style={{ marginTop: 20, height: 40, padding: '0 10px', borderRadius: 8, background: '#F9F8F6', border: '1px solid #E8E5DE', color: '#6B6860', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>
+            {showPw ? 'Hide' : 'Show'}
+          </button>
+        </div>
+      </div>
+
+      {/* Pricing */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
         <div className="ad-field-inline">
           <label className="ad-label">BW Price / Page (₹)</label>
