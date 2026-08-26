@@ -61,7 +61,7 @@ export default function HowItWorksJourney() {
         .journey-wrapper {
           position: relative;
           max-width: 1200px;
-          margin: 60px auto 0;
+          margin: 40px auto 0;
           padding: 0 20px;
         }
         .journey-track-container {

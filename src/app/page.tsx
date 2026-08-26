@@ -216,8 +216,26 @@ export default function LandingPage() {
 
         /* ── How it works ── */
         .section {
-          padding: clamp(80px, 12vw, 120px) clamp(20px, 6vw, 80px);
+          padding: 80px clamp(20px, 4vw, 40px);
           position: relative;
+        }
+        .pt-hero-transition { padding-top: 56px; }
+        .pt-tight { padding-top: 32px; }
+        .pb-tight { padding-bottom: 32px; }
+        .pt-none { padding-top: 0; }
+
+        @media (max-width: 900px) {
+          .section { padding: 56px 20px; }
+          .pt-hero-transition { padding-top: 48px; }
+          .pt-tight { padding-top: 32px; }
+          .pb-tight { padding-bottom: 32px; }
+          .pt-none { padding-top: 0; }
+        }
+        @media (max-width: 600px) {
+          .section { padding: 48px 20px; }
+          .pt-hero-transition { padding-top: 32px; }
+          .pt-tight { padding-top: 24px; }
+          .pb-tight { padding-bottom: 24px; }
         }
         .section-inner { max-width: 1200px; margin: 0 auto; }
         .kicker {
@@ -428,7 +446,7 @@ export default function LandingPage() {
         /* ── CTA band ── */
         .cta-band {
           background: var(--ink);
-          padding: clamp(72px, 10vw, 100px) clamp(20px, 6vw, 80px);
+          padding: 72px clamp(20px, 4vw, 40px);
           position: relative; overflow: hidden;
         }
         .cta-band::before {
@@ -609,7 +627,7 @@ export default function LandingPage() {
       </header>
 
       {/* ── How it works ── */}
-      <section className="section" id="how" style={{ background: '#FFFFFF' }}>
+      <section className="section pt-hero-transition pb-tight" id="how" style={{ background: '#FFFFFF' }}>
         <div className="section-inner">
           <div className="kicker reveal">How it works</div>
           <h2 className="section-h2 reveal">From phone to paper in 60 seconds.</h2>
@@ -620,7 +638,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Two perspectives ── */}
-      <section className="section grid-bg" id="for-who">
+      <section className="section grid-bg pt-tight pb-tight" id="for-who">
         <div className="section-inner">
           <div className="kicker reveal">Who benefits</div>
           <h2 className="section-h2 reveal">Better for customers. <br />Way better for you.</h2>
@@ -628,10 +646,6 @@ export default function LandingPage() {
             <div className="side-card reveal">
               <span className="side-card-label customer">For your customers</span>
               <h3>No pen drive. No WhatsApp. Just scan.</h3>
-              <p>
-                Customers walk in, scan the QR on your counter, and upload directly from their own phone.
-                No pen drive, no cables, no sharing personal numbers — done in seconds.
-              </p>
               <ul className="checklist">
                 <li>No app download, no sign-up required</li>
                 <li>Upload PDFs, Word docs, photos from phone</li>
@@ -643,10 +657,6 @@ export default function LandingPage() {
             <div className="side-card reveal">
               <span className="side-card-label shop">For shop owners</span>
               <h3>Run more jobs, less chaos</h3>
-              <p>
-                Your staff stays free to cut, bind, and handle walk-ins.
-                The print queue handles itself. No more transferring files manually on your PC.
-              </p>
               <ul className="checklist">
                 <li>Works with any printer on your existing Windows PC</li>
                 <li>Agent dashboard — see live queue, revenue, history</li>
@@ -663,7 +673,7 @@ export default function LandingPage() {
       <WhyScanItPrintIt />
 
       {/* ── Pricing ── */}
-      <section className="section grid-bg" id="pricing">
+      <section className="section grid-bg pt-none pb-tight" id="pricing">
         <div className="section-inner">
           <div className="kicker reveal">Pricing</div>
           <h2 className="section-h2 reveal">Simple, honest pricing.</h2>
@@ -727,7 +737,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="section" id="faq" style={{ background: '#FFFFFF' }}>
+      <section className="section pt-tight" id="faq" style={{ background: '#FFFFFF' }}>
         <div className="section-inner">
           <div className="kicker reveal">FAQ</div>
           <h2 className="section-h2 reveal">Common questions.</h2>

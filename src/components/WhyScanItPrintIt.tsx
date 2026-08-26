@@ -44,7 +44,7 @@ export default function WhyScanItPrintIt() {
   }, [isVisible]);
 
   return (
-    <section className="section" id="why" style={{ background: '#FFFFFF' }}>
+    <section className="section pt-tight pb-tight" id="why" style={{ background: '#FFFFFF' }}>
       <style>{`
         .why-inner {
           max-width: 1200px;
@@ -57,7 +57,7 @@ export default function WhyScanItPrintIt() {
           border: 1px solid var(--border);
           border-radius: 24px;
           padding: 60px 40px;
-          margin: 60px 0;
+          margin: 40px 0;
           position: relative;
           overflow: hidden;
           display: flex;
@@ -174,7 +174,7 @@ export default function WhyScanItPrintIt() {
           border: 1px solid var(--border);
           border-radius: 24px;
           overflow: hidden;
-          margin-bottom: 80px;
+          margin-bottom: 40px;
         }
         .comp-col {
           padding: 48px;
@@ -221,7 +221,7 @@ export default function WhyScanItPrintIt() {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           gap: 40px;
-          margin-bottom: 80px;
+          margin-bottom: 40px;
         }
         .benefit-item {
           display: flex;
