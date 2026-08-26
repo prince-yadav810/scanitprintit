@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Printer, FileUp, CreditCard, CheckCircle, Zap, ShieldCheck, BarChart2, Timer, Smartphone, Infinity } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'ScanItPrintIt — Smart Print Automation for Xerox & Copy Shops',
@@ -315,7 +316,7 @@ export default function LandingPage() {
           transition: background 0.2s;
         }
         .reason:hover { background: var(--bg); }
-        .reason-icon { font-size: 28px; margin-bottom: 16px; }
+        .reason-icon { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: var(--amber-lt); border: 1px solid #FDE68A; border-radius: 10px; margin-bottom: 16px; color: var(--amber-dk); }
         .reason h3 {
           font-size: 1.05rem; font-weight: 700; color: var(--ink);
           margin-bottom: 8px;
@@ -324,8 +325,8 @@ export default function LandingPage() {
 
         /* ── Pricing ── */
         .pricing-grid {
-          display: grid; grid-template-columns: 1fr 1fr;
-          gap: 20px; margin-top: 56px; max-width: 760px;
+          display: grid; grid-template-columns: repeat(3, 1fr);
+          gap: 20px; margin-top: 56px; max-width: 1060px;
         }
         .price-card {
           border: 1px solid var(--border); border-radius: 20px;
@@ -495,6 +496,7 @@ export default function LandingPage() {
           .two-col { grid-template-columns: 1fr; }
           .reasons-grid { grid-template-columns: 1fr 1fr; }
           .pricing-grid { grid-template-columns: 1fr; max-width: 440px; }
+          .pricing-grid .price-card:last-child { border-top: 2px solid var(--amber); }
           .hero-deco { display: none; }
         }
         @media (max-width: 600px) {
@@ -538,12 +540,12 @@ export default function LandingPage() {
           </h1>
 
           <p className="hero-sub">
-            Customers scan your QR code, upload files from their phone, and pay online.
-            Your Windows PC prints automatically — no WhatsApp, no USB, no staff needed at the keyboard.
+            Customers scan your QR, upload files directly from their phone, and pay online.
+            Your Windows PC prints automatically — no pen drives, no manual transfers, no staff needed at the keyboard.
           </p>
 
           <div className="hero-actions">
-            <a href="#pricing" className="btn-primary">
+            <a href="https://wa.me/918591442334?text=Hi%2C%20I%27m%20interested%20in%20ScanItPrintIt%20for%20my%20print%20shop.%20Please%20tell%20me%20more." target="_blank" rel="noreferrer" className="btn-primary">
               Start Free Trial →
             </a>
             <a href="#how" className="btn-ghost">
@@ -586,20 +588,33 @@ export default function LandingPage() {
           <p className="section-lead reveal">No app. No USB. No shouting file names across the counter.</p>
 
           <div className="steps-grid reveal">
-            {[
-              { n: '01', icon: '📱', title: 'Customer scans the QR', desc: "Your shop's QR code is on the counter. Customer scans it with any phone camera — opens instantly in the browser." },
-              { n: '02', icon: '📄', title: 'Upload & pick options', desc: 'Choose B&W or colour, number of copies, single or double-sided. Files go securely over the internet.' },
-              { n: '03', icon: '💳', title: 'Pay online', desc: 'UPI, card, or cash at counter — your choice. Payment goes straight to your account. We take zero cut.' },
-              { n: '04', icon: '🖨️', title: 'Printer goes brr', desc: 'Your Windows PC gets the job automatically and prints. Files are deleted right after. Staff just hands it over.' },
-            ].map((s, i) => (
-              <div className="step-card" key={i}>
-                <div className="step-num">{s.n}</div>
-                <div className="step-icon">{s.icon}</div>
-                <div className="step-title">{s.title}</div>
-                <div className="step-desc">{s.desc}</div>
-                {i < 3 && <div className="step-arrow">→</div>}
-              </div>
-            ))}
+            <div className="step-card">
+              <div className="step-num">01</div>
+              <div className="step-icon"><Smartphone size={18} /></div>
+              <div className="step-title">Customer scans the QR</div>
+              <div className="step-desc">Your shop's QR code is on the counter. Customer scans it with any phone camera — opens instantly in the browser.</div>
+              <div className="step-arrow">→</div>
+            </div>
+            <div className="step-card">
+              <div className="step-num">02</div>
+              <div className="step-icon"><FileUp size={18} /></div>
+              <div className="step-title">Upload & pick options</div>
+              <div className="step-desc">Choose B&W or colour, copies, single or double-sided. Files go securely over the internet — no pen drive needed.</div>
+              <div className="step-arrow">→</div>
+            </div>
+            <div className="step-card">
+              <div className="step-num">03</div>
+              <div className="step-icon"><CreditCard size={18} /></div>
+              <div className="step-title">Pay online</div>
+              <div className="step-desc">UPI, card, or cash at counter — your choice. Payment goes straight to your account. We take zero cut.</div>
+              <div className="step-arrow">→</div>
+            </div>
+            <div className="step-card">
+              <div className="step-num">04</div>
+              <div className="step-icon"><Printer size={18} /></div>
+              <div className="step-title">Printer goes brrr</div>
+              <div className="step-desc">Your Windows PC gets the job automatically and prints. Files are deleted right after. Staff just hands it over.</div>
+            </div>
           </div>
         </div>
       </section>
@@ -612,10 +627,10 @@ export default function LandingPage() {
           <div className="two-col">
             <div className="side-card reveal">
               <span className="side-card-label customer">For your customers</span>
-              <h3>No more "send on WhatsApp"</h3>
+              <h3>No pen drive. No WhatsApp. Just scan.</h3>
               <p>
                 Customers walk in, scan the QR on your counter, and upload directly from their own phone.
-                No waiting. No sharing their private number with a stranger. No USB drama.
+                No pen drive, no cables, no sharing personal numbers — done in seconds.
               </p>
               <ul className="checklist">
                 <li>No app download, no sign-up required</li>
@@ -650,23 +665,39 @@ export default function LandingPage() {
           <div className="kicker reveal">Why ScanItPrintIt</div>
           <h2 className="section-h2 reveal">The print shop upgrade<br />that pays for itself.</h2>
           <p className="section-lead reveal">
-            Compare us to buying a kiosk (₹3–5 lakh) or doing it all on WhatsApp (slow, messy, no records).
+            Compare us to buying a kiosk (₹3–5 lakh) or managing files on pen drives (slow, messy, no records).
           </p>
           <div className="reasons-grid reveal">
-            {[
-              { icon: '🖨️', title: 'Use your existing printer', desc: "No new hardware. If your printer is connected to Windows, it works with ScanItPrintIt. We install a small background agent — nothing more." },
-              { icon: '💰', title: 'Zero revenue share', desc: "₹299/month flat. Not per-print, not a percentage. Customer payment lands in your Cashfree account — we never touch it." },
-              { icon: '⚡', title: 'Staff off the computer', desc: "Customers set all options themselves on their phone. Your team stays free for finishing, cutting, and actual customer service." },
-              { icon: '🔒', title: 'Files deleted after print', desc: "Documents are stored only long enough to print, then wiped. We don't keep customer files. Privacy by design." },
-              { icon: '📊', title: 'Real-time revenue tracking', desc: "See today's jobs, earnings, and order history from your owner dashboard — or from the agent window on your counter PC." },
-              { icon: '⏱️', title: 'Setup in under 2 minutes', desc: "Register your shop online, install the Windows agent, paste the pairing code. Done. Your QR is ready to stick on the counter." },
-            ].map((r, i) => (
-              <div className="reason reveal" key={i}>
-                <div className="reason-icon">{r.icon}</div>
-                <h3>{r.title}</h3>
-                <p>{r.desc}</p>
-              </div>
-            ))}
+            <div className="reason">
+              <div className="reason-icon"><Printer size={18} /></div>
+              <h3>Use your existing printer</h3>
+              <p>No new hardware. If your printer is on Windows, it works. We install a small background agent — nothing more.</p>
+            </div>
+            <div className="reason">
+              <div className="reason-icon"><CheckCircle size={18} /></div>
+              <h3>Zero revenue share</h3>
+              <p>₹299/month flat. Not per-print, not a percentage. Customer payment lands in your account — we never touch it.</p>
+            </div>
+            <div className="reason">
+              <div className="reason-icon"><Zap size={18} /></div>
+              <h3>Staff off the computer</h3>
+              <p>Customers set all options on their phone. Your team stays free for finishing, cutting, and actual customer service.</p>
+            </div>
+            <div className="reason">
+              <div className="reason-icon"><ShieldCheck size={18} /></div>
+              <h3>Files deleted after print</h3>
+              <p>Documents are stored only long enough to print, then wiped. We don't keep customer files. Privacy by design.</p>
+            </div>
+            <div className="reason">
+              <div className="reason-icon"><BarChart2 size={18} /></div>
+              <h3>Real-time revenue tracking</h3>
+              <p>See today's jobs, earnings, and order history from your dashboard — or from the agent window on your counter PC.</p>
+            </div>
+            <div className="reason">
+              <div className="reason-icon"><Timer size={18} /></div>
+              <h3>Setup in under 2 minutes</h3>
+              <p>Register your shop, install the Windows agent, paste the pairing code. Done. Your QR is ready to stick on the counter.</p>
+            </div>
           </div>
         </div>
       </section>
@@ -692,7 +723,7 @@ export default function LandingPage() {
                 <li>Revenue analytics</li>
                 <li>Email support</li>
               </ul>
-              <a href="/login" className="btn-price btn-price-dark">Get started →</a>
+              <a href="https://wa.me/918591442334?text=Hi%2C%20I%27m%20interested%20in%20the%20Monthly%20plan%20(₹299%2Fmo)%20for%20ScanItPrintIt." target="_blank" rel="noreferrer" className="btn-price btn-price-dark">Get started →</a>
             </div>
             <div className="price-card featured reveal" style={{ position: 'relative' }}>
               <div className="price-badge">Best value</div>
@@ -706,11 +737,31 @@ export default function LandingPage() {
                 <li>Dedicated setup call</li>
                 <li>₹167/month effective rate</li>
               </ul>
-              <a href="/login" className="btn-price btn-price-light">Get started →</a>
+              <a href="https://wa.me/918591442334?text=Hi%2C%20I%27m%20interested%20in%20the%20Annual%20plan%20(₹2000%2Fyr)%20for%20ScanItPrintIt." target="_blank" rel="noreferrer" className="btn-price btn-price-light">Get started →</a>
+            </div>
+            <div className="price-card reveal" style={{ position: 'relative', borderTop: '2px solid var(--amber)' }}>
+              <div className="price-badge" style={{ background: '#1A1915' }}>One-time</div>
+              <p className="price-label">Lifetime</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="price-amount">₹5,000</div>
+                <Infinity size={22} color="var(--amber)" style={{ flexShrink: 0, marginBottom: 4 }} />
+              </div>
+              <p className="price-period">pay once, use forever</p>
+              <ul className="price-features">
+                <li>Everything in Annual</li>
+                <li>Lifetime software updates</li>
+                <li>Never pay again</li>
+                <li>VIP onboarding call</li>
+                <li>Best for established shops</li>
+              </ul>
+              <a href="https://wa.me/918591442334?text=Hi%2C%20I%27m%20interested%20in%20the%20Lifetime%20plan%20(₹5000)%20for%20ScanItPrintIt." target="_blank" rel="noreferrer" className="btn-price btn-price-dark">Get started →</a>
             </div>
           </div>
-          <p style={{ marginTop: 20, fontSize: '0.85rem', color: 'var(--muted2)' }}>
-            🎁 Free trial available · No credit card needed to start
+          <p style={{ marginTop: 24, fontSize: '0.875rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <CheckCircle size={14} color="#15803D" />
+            <span>Free trial available</span>
+            <span style={{ color: 'var(--border)', margin: '0 2px' }}>·</span>
+            <span>No credit card needed to start</span>
           </p>
         </div>
       </section>
@@ -753,7 +804,7 @@ export default function LandingPage() {
             Start your free trial — no card needed.
           </p>
           <div className="cta-actions">
-            <a href="/login" className="btn-cta">Start Free Trial →</a>
+            <a href="https://wa.me/918591442334?text=Hi%2C%20I%27m%20interested%20in%20ScanItPrintIt%20for%20my%20print%20shop.%20Please%20tell%20me%20more." target="_blank" rel="noreferrer" className="btn-cta">Start Free Trial →</a>
             <a href="#how" className="btn-cta-ghost">See how it works</a>
           </div>
         </div>
@@ -762,11 +813,15 @@ export default function LandingPage() {
       {/* ── Footer ── */}
       <footer>
         <div className="footer-inner">
-          <a href="/" className="footer-brand">ScanIt<span>PrintIt</span><span style={{ color: 'var(--muted2)', fontWeight: 400 }}>.in</span></a>
-          <p className="footer-copy">© {new Date().getFullYear()} ScanItPrintIt. Built for Indian print shops.</p>
+          <div>
+            <a href="/" className="footer-brand">ScanIt<span>PrintIt</span><span style={{ color: 'var(--muted2)', fontWeight: 400 }}>.in</span></a>
+            <p style={{ fontSize: '0.8rem', color: 'var(--muted2)', marginTop: 4 }}>A product by <strong style={{ color: 'var(--muted)' }}>Enclope Enterprises</strong></p>
+          </div>
+          <p className="footer-copy">© {new Date().getFullYear()} Enclope Enterprises. All rights reserved.</p>
           <div className="footer-links">
             <a href="/login">Shop Login</a>
-            <a href="mailto:support@scanitprintit.in">Contact</a>
+            <a href="https://wa.me/918591442334" target="_blank" rel="noreferrer">+91 85914 42334</a>
+            <a href="mailto:support@scanitprintit.in">Email</a>
           </div>
         </div>
       </footer>
