@@ -33,7 +33,7 @@ export default function LoginPage() {
 
       {/* Top wordmark */}
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
-        <img src="/logo-full.png" alt="ScanItPrintIt" style={{ height: 36 }} />
+        <img src="/logo-full.png" alt="ScanItPrintIt" style={{ height: 48 }} />
       </div>
 
       {/* Centered card */}
