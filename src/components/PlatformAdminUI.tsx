@@ -394,9 +394,8 @@ export default function PlatformAdminUI({
 
       {/* Top Nav */}
       <nav className="ad-topnav">
-        <a href="/admin" className="ad-topnav-brand">
-          <img src="/icon.png" alt="ScanItPrintIt" onError={(e) => (e.currentTarget.style.display = 'none')} />
-          ScanItPrintIt
+        <a href="/admin" className="ad-topnav-brand" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src="/logo-full.png" alt="ScanItPrintIt" style={{ height: 26 }} onError={(e) => (e.currentTarget.style.display = 'none')} />
           <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF', background: '#F3F4F6', padding: '2px 8px', borderRadius: 6 }}>Platform Admin</span>
         </a>
         <div className="ad-topnav-right">

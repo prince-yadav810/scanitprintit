@@ -234,9 +234,8 @@ export default function AdminShopUI({ shop, userRole }: { shop: any; userRole?: 
       {/* Top Nav */}
       <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #E8E5DE', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src="/icon.png" alt="" style={{ height: 26 }} onError={(e) => (e.currentTarget.style.display = 'none')} />
-          <span style={{ fontWeight: 700, fontSize: 15 }}>ScanItPrintIt</span>
-          <span style={{ color: '#D1D5DB' }}>·</span>
+          <img src="/logo-full.png" alt="ScanItPrintIt" style={{ height: 24 }} onError={(e) => (e.currentTarget.style.display = 'none')} />
+          <span style={{ color: '#D1D5DB', marginLeft: 4 }}>·</span>
           <span style={{ fontSize: 14, color: '#6B6860', fontWeight: 500 }}>{shop.name}</span>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>

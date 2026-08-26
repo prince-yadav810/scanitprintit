@@ -509,9 +509,8 @@ export default function LandingPage() {
 
       {/* ── Nav ── */}
       <nav className="nav">
-        <a href="/" className="nav-brand">
-          <img src="/icon.png" alt="" style={{ height: 28 }} />
-          <span className="nav-wordmark">Scan<span>It</span>Print<span>It</span></span>
+        <a href="/" className="nav-brand" style={{ display: 'flex', alignItems: 'center' }}>
+          <img src="/logo-full.png" alt="ScanItPrintIt.in" style={{ height: 32 }} />
         </a>
         <ul className="nav-links">
           <li><a href="#how">How it works</a></li>
@@ -814,7 +813,9 @@ export default function LandingPage() {
       <footer>
         <div className="footer-inner">
           <div>
-            <a href="/" className="footer-brand">Scan<span>It</span>Print<span>It</span><span style={{ color: 'var(--muted2)', fontWeight: 400 }}>.in</span></a>
+            <a href="/" className="footer-brand" style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+              <img src="/logo-full.png" alt="ScanItPrintIt.in" style={{ height: 36 }} />
+            </a>
             <p style={{ fontSize: '0.8rem', color: 'var(--muted2)', marginTop: 4 }}>A product by <strong style={{ color: 'var(--muted)' }}>Enclope Enterprises</strong></p>
           </div>
           <p className="footer-copy">© {new Date().getFullYear()} Enclope Enterprises. All rights reserved.</p>
