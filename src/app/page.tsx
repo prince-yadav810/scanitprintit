@@ -192,6 +192,7 @@ export default function LandingPage() {
           box-shadow: 0 24px 48px rgba(26,25,21,0.08);
           border: 1px solid var(--border);
           animation: fadeUp 1.2s 0.5s ease both;
+          margin-top: -80px; /* nudges it up */
         }
         .hero-content-wrapper {
           max-width: 1200px; margin: 0 auto; width: 100%;
@@ -208,6 +209,7 @@ export default function LandingPage() {
             gap: 40px;
           }
           .hero-text-side, .hero-video-side { max-width: 100%; }
+          .hero-video-wrapper { margin-top: 0; } /* reset on mobile */
         }
 
         /* ── How it works ── */
