@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Printer, FileUp, CreditCard, CheckCircle, Zap, ShieldCheck, BarChart2, Timer, Smartphone, Infinity } from 'lucide-react';
+import HowItWorksVideo from '@/components/HowItWorksVideo';
 
 export const metadata: Metadata = {
   title: 'ScanItPrintIt — Smart Print Automation for Xerox & Copy Shops',
@@ -511,7 +512,7 @@ export default function LandingPage() {
       <nav className="nav">
         <a href="/" className="nav-brand">
           <img src="/icon.png" alt="" style={{ height: 28 }} />
-          <span className="nav-wordmark">ScanIt<span>PrintIt</span></span>
+          <span className="nav-wordmark">Scan<span>It</span>Print<span>It</span></span>
         </a>
         <ul className="nav-links">
           <li><a href="#how">How it works</a></li>
@@ -587,34 +588,8 @@ export default function LandingPage() {
           <h2 className="section-h2 reveal">From phone to paper in 60 seconds.</h2>
           <p className="section-lead reveal">No app. No USB. No shouting file names across the counter.</p>
 
-          <div className="steps-grid reveal">
-            <div className="step-card">
-              <div className="step-num">01</div>
-              <div className="step-icon"><Smartphone size={18} /></div>
-              <div className="step-title">Customer scans the QR</div>
-              <div className="step-desc">Your shop's QR code is on the counter. Customer scans it with any phone camera — opens instantly in the browser.</div>
-              <div className="step-arrow">→</div>
-            </div>
-            <div className="step-card">
-              <div className="step-num">02</div>
-              <div className="step-icon"><FileUp size={18} /></div>
-              <div className="step-title">Upload & pick options</div>
-              <div className="step-desc">Choose B&W or colour, copies, single or double-sided. Files go securely over the internet — no pen drive needed.</div>
-              <div className="step-arrow">→</div>
-            </div>
-            <div className="step-card">
-              <div className="step-num">03</div>
-              <div className="step-icon"><CreditCard size={18} /></div>
-              <div className="step-title">Pay online</div>
-              <div className="step-desc">UPI, card, or cash at counter — your choice. Payment goes straight to your account. We take zero cut.</div>
-              <div className="step-arrow">→</div>
-            </div>
-            <div className="step-card">
-              <div className="step-num">04</div>
-              <div className="step-icon"><Printer size={18} /></div>
-              <div className="step-title">Printer goes brrr</div>
-              <div className="step-desc">Your Windows PC gets the job automatically and prints. Files are deleted right after. Staff just hands it over.</div>
-            </div>
+          <div className="reveal">
+            <HowItWorksVideo />
           </div>
         </div>
       </section>
@@ -814,7 +789,7 @@ export default function LandingPage() {
       <footer>
         <div className="footer-inner">
           <div>
-            <a href="/" className="footer-brand">ScanIt<span>PrintIt</span><span style={{ color: 'var(--muted2)', fontWeight: 400 }}>.in</span></a>
+            <a href="/" className="footer-brand">Scan<span>It</span>Print<span>It</span><span style={{ color: 'var(--muted2)', fontWeight: 400 }}>.in</span></a>
             <p style={{ fontSize: '0.8rem', color: 'var(--muted2)', marginTop: 4 }}>A product by <strong style={{ color: 'var(--muted)' }}>Enclope Enterprises</strong></p>
           </div>
           <p className="footer-copy">© {new Date().getFullYear()} Enclope Enterprises. All rights reserved.</p>
