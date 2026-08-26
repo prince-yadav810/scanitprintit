@@ -184,17 +184,26 @@ export default function LandingPage() {
         .hero-proof-item svg { color: var(--amber); flex-shrink: 0; }
         .hero-divider { width: 1px; height: 16px; background: var(--border); }
 
-        /* big decorative number */
-        .hero-deco {
-          position: absolute; right: clamp(20px, 8vw, 120px); top: 50%;
+        /* ── Hero Video (Right Half) ── */
+        .hero-video-wrapper {
+          position: absolute; right: clamp(20px, 8vw, 80px); top: 50%;
           transform: translateY(-50%);
-          font-family: var(--serif);
-          font-size: clamp(200px, 28vw, 380px);
-          font-style: italic; font-weight: 400;
-          color: transparent;
-          -webkit-text-stroke: 1px rgba(26,25,21,0.06);
-          line-height: 1; user-select: none; pointer-events: none;
+          width: 45%;
+          max-width: 560px;
+          border-radius: 24px;
+          overflow: hidden;
+          box-shadow: 0 24px 48px rgba(26,25,21,0.08);
+          border: 1px solid var(--border);
           animation: fadeUp 1.2s 0.5s ease both;
+          z-index: 10;
+        }
+        @media (max-width: 900px) {
+          .hero { padding-bottom: 40px; }
+          .hero-video-wrapper {
+            position: relative; right: auto; top: auto;
+            transform: none; width: 100%; max-width: 100%;
+            margin-top: 48px; margin-bottom: 24px;
+          }
         }
 
         /* ── How it works ── */
@@ -575,8 +584,17 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Decorative large italic number */}
-        <div className="hero-deco" aria-hidden="true">∞</div>
+        {/* Video on the right half */}
+        <div className="hero-video-wrapper">
+          <video 
+            src="/hero-video.mp4" 
+            autoPlay 
+            loop 
+            muted 
+            playsInline 
+            style={{ width: '100%', display: 'block' }} 
+          />
+        </div>
       </header>
 
       {/* ── How it works ── */}
