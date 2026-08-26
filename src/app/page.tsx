@@ -508,7 +508,7 @@ export default function LandingPage() {
       {/* ── Nav ── */}
       <nav className="nav">
         <a href="/" className="nav-brand">
-          <img src="/icon.png" alt="" style={{ height: 28 }} onError={(e: any) => (e.currentTarget.style.display = 'none')} />
+          <img src="/icon.png" alt="" style={{ height: 28 }} />
           <span className="nav-wordmark">ScanIt<span>PrintIt</span></span>
         </a>
         <ul className="nav-links">
@@ -771,13 +771,14 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* Scroll reveal script */}
+      {/* Scroll reveal — handled via CSS for SSR compatibility */}
       <script dangerouslySetInnerHTML={{ __html: `
-        const els = document.querySelectorAll('.reveal');
-        const io = new IntersectionObserver(entries => {
-          entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } });
-        }, { threshold: 0.12 });
-        els.forEach(el => io.observe(el));
+        (function(){
+          var els = document.querySelectorAll('.reveal');
+          if(!('IntersectionObserver' in window)){els.forEach(function(e){e.classList.add('visible');});return;}
+          var io = new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}});},{threshold:0.1});
+          els.forEach(function(el){io.observe(el);});
+        })();
       `}} />
     </>
   );
