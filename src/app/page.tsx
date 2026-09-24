@@ -555,6 +555,7 @@ export default function LandingPage() {
         </ul>
         <div className="nav-right">
           <a href="/login" className="btn-nav-ghost">Shop Login</a>
+          <a href="/ScanItPrintIt-Agent-Setup.exe" download className="btn-nav-ghost">Download App</a>
           <a href="#pricing" className="btn-nav">Get Started →</a>
         </div>
       </nav>
@@ -583,7 +584,10 @@ export default function LandingPage() {
               <a href="https://wa.me/918591442334?text=Hi%2C%20I%27m%20interested%20in%20ScanItPrintIt%20for%20my%20print%20shop.%20Please%20tell%20me%20more." target="_blank" rel="noreferrer" className="btn-primary">
                 Start Free Trial →
               </a>
-              <a href="#how" className="btn-ghost">
+              <a href="/ScanItPrintIt-Agent-Setup.exe" className="btn-ghost" download>
+                Download Windows App
+              </a>
+              <a href="#how" className="btn-ghost" style={{ border: 'none', background: 'transparent' }}>
                 See how it works
               </a>
             </div>
@@ -775,7 +779,7 @@ export default function LandingPage() {
           </p>
           <div className="cta-actions">
             <a href="https://wa.me/918591442334?text=Hi%2C%20I%27m%20interested%20in%20ScanItPrintIt%20for%20my%20print%20shop.%20Please%20tell%20me%20more." target="_blank" rel="noreferrer" className="btn-cta">Start Free Trial →</a>
-            <a href="#how" className="btn-cta-ghost">See how it works</a>
+            <a href="/ScanItPrintIt-Agent-Setup.exe" className="btn-cta-ghost" download>Download Windows App</a>
           </div>
         </div>
       </section>
