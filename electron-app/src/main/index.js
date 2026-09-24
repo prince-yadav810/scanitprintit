@@ -31,7 +31,7 @@ function setupAutoUpdater(win) {
   autoUpdater.on('before-quit-for-update', () => {
     isQuitting = true;
   });
-});
+}
 
 // IPC: renderer triggers check or install
 ipcMain.handle('updater:check', async () => {
