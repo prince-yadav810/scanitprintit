@@ -166,19 +166,18 @@ async function processJob(job) {
         // ── CORRECT pdf-to-printer options
         const printOptions = {
           printer: selectedPrinter,
-          side:       (job.settings?.sides === 'DOUBLE') ? 'duplex' : 'simplex',
           monochrome: (job.settings?.mode || 'BW') === 'BW',
-          silent: true,
           scale: 'fit',
         };
-        emit('agent:event', { type: 'info', message: `Printing to: "${selectedPrinter}" | BW=${printOptions.monochrome} duplex=${job.settings?.sides === 'DOUBLE'}` });
+        // Removed `side` and `silent` which might cause issues with basic GDI printers like Canon LBP2900.
+        emit('agent:event', { type: 'info', message: `Printing to: "${selectedPrinter}" | BW=${printOptions.monochrome}` });
 
         const copies = parseInt(job.settings?.copies) || 1;
         for (let c = 0; c < copies; c++) {
           await ptp.print(tempPath, printOptions);
-          if (copies > 1) await new Promise(r => setTimeout(r, 500));
+          if (copies > 1) await new Promise(r => setTimeout(r, 1000));
         }
-        await new Promise(r => setTimeout(r, 4000)); // let spooler copy file
+        
         emit('agent:event', { type: 'info', message: `✅ Spooled: ${file.originalName}` });
       } catch (err) {
         emit('agent:event', { type: 'error', message: `❌ Print error: ${err.message}` });
@@ -190,7 +189,11 @@ async function processJob(job) {
       await new Promise(r => setTimeout(r, 1500));
     }
 
-    fs.unlink(tempPath, () => {});
+    // DELAY UNLINK by 60 seconds! 
+    // Basic GDI printers (like Canon LBP2900) take a long time to spool and will fail if the file is deleted too quickly.
+    setTimeout(() => {
+      fs.unlink(tempPath, () => {});
+    }, 60000);
   }
 
   if (allPrinted) {
