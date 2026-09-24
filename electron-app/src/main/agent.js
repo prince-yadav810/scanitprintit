@@ -148,8 +148,14 @@ async function processJob(job) {
           copies: job.settings?.copies || 1,
           sides: job.settings?.sides === 'DOUBLE' ? 'two-sided-long-edge' : 'one-sided',
           ...(selectedPrinter ? { printer: selectedPrinter } : {}),
+          // Use Windows shell "print" verb — silent, no UI dialog
+          win32PrintJobType: 'pdf',
         };
+        emit('agent:event', { type: 'info', message: `Sending to printer: ${selectedPrinter || 'default'}` });
         await ptp.print(tempPath, printOptions);
+        // Small delay to allow Windows spooler to copy the file before we delete it
+        await new Promise(r => setTimeout(r, 3000));
+        emit('agent:event', { type: 'info', message: `Print job spooled for ${file.originalName}` });
       } catch (err) {
         emit('agent:event', { type: 'error', message: `Print failed: ${err.message}` });
         allPrinted = false;

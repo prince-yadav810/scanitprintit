@@ -361,6 +361,10 @@
                 <div><div class="settings-label">Auto-Print</div><div class="settings-desc">Print jobs immediately without manual approval</div></div>
                 <label class="toggle"><input type="checkbox" id="toggle-autoprint" onchange="saveRemoteSettings()"><div class="toggle-slider"></div></label>
               </div>
+              <div class="settings-row" id="sim-mode-row" style="display:none;">
+                <div><div class="settings-label" style="color:#d97706;">🧪 Simulation Mode</div><div class="settings-desc">When ON, jobs are saved to Desktop folder instead of printing. Turn OFF to print for real.</div></div>
+                <label class="toggle"><input type="checkbox" id="toggle-simulation" onchange="saveRemoteSettings()"><div class="toggle-slider"></div></label>
+              </div>
             </div>
           </div>
 
@@ -782,6 +786,13 @@ async function loadSettings() {
     if (document.getElementById('toggle-autoprint')) {
       document.getElementById('toggle-autoprint').checked = remote.autoPrintEnabled ?? true;
     }
+    // Show simulation toggle only for test shops
+    const simRow = document.getElementById('sim-mode-row');
+    if (simRow && remote.simulationEnabled !== undefined) {
+      simRow.style.display = '';
+      const simToggle = document.getElementById('toggle-simulation');
+      if (simToggle) simToggle.checked = remote.simulationEnabled;
+    }
   } catch (e) { console.warn('Could not load remote settings', e); }
 }
 
@@ -801,13 +812,17 @@ async function saveLocalSettings() {
 async function saveRemoteSettings() {
   const bwVal = parseFloat(document.getElementById('price-bw').value) || 0;
   const colorVal = parseFloat(document.getElementById('price-color').value) || 0;
-  await window.api.saveSettings({
-    remote: {
-      autoPrintEnabled:  document.getElementById('toggle-autoprint') ? document.getElementById('toggle-autoprint').checked : true,
-      bwPricePerPage:    bwVal,
-      colorPricePerPage: colorVal,
-    }
-  });
+  const simToggle = document.getElementById('toggle-simulation');
+  const remote = {
+    autoPrintEnabled:  document.getElementById('toggle-autoprint') ? document.getElementById('toggle-autoprint').checked : true,
+    bwPricePerPage:    bwVal,
+    colorPricePerPage: colorVal,
+  };
+  // Only include simulationEnabled if the toggle is visible (test shops only)
+  if (simToggle && document.getElementById('sim-mode-row').style.display !== 'none') {
+    remote.simulationEnabled = simToggle.checked;
+  }
+  await window.api.saveSettings({ remote });
   document.getElementById('bw-current-price').textContent = `Current: ₹${bwVal}/page`;
   document.getElementById('color-current-price').textContent = `Current: ₹${colorVal}/page`;
   const btn = document.getElementById('btn-save-remote');
