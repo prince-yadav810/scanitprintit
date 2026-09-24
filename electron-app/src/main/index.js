@@ -28,7 +28,10 @@ function setupAutoUpdater(win) {
   autoUpdater.on('error', (err) => {
     if (win && !win.isDestroyed()) win.webContents.send('updater:status', { status: 'error', message: err.message });
   });
-}
+  autoUpdater.on('before-quit-for-update', () => {
+    isQuitting = true;
+  });
+});
 
 // IPC: renderer triggers check or install
 ipcMain.handle('updater:check', async () => {
@@ -41,6 +44,7 @@ ipcMain.handle('updater:check', async () => {
 });
 
 ipcMain.handle('updater:install', () => {
+  isQuitting = true;
   autoUpdater.quitAndInstall(false, true); // don't force — let user see the installer
 });
 
@@ -169,9 +173,11 @@ app.whenReady().then(() => {
   }, 5000);
 });
 
-app.on('window-all-closed', (e) => {
-  // On macOS, app stays in dock. On Windows, prevent quit when closing window.
-  e.preventDefault();
+app.on('window-all-closed', () => {
+  // Let the app actually quit when windows are forcefully closed by the updater
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
 });
 
 app.on('before-quit', () => {
