@@ -1,6 +1,6 @@
 {
   "name": "scanitprintit-agent",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "ScanItPrintIt Shop Owner Dashboard & Print Agent",
   "main": "src/main/index.js",
   "author": "ScanItPrintIt",
@@ -22,7 +22,7 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "in.scanitprintit.agent",
+    "appId": "in.scanitprintit.agent.v2",
     "productName": "ScanItPrintIt Agent",
     "copyright": "Copyright © 2026 ScanItPrintIt",
     "publish": {
