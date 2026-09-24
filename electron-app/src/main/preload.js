@@ -26,6 +26,21 @@ contextBridge.exposeInMainWorld('api', {
   downloadQrCode: () => ipcRenderer.invoke('settings:downloadQrCode'),
   exportHistoryCsv: (filters) => ipcRenderer.invoke('history:exportCsv', filters),
 
+  // ── Auto-Updater ──────────────────────────────────────────────────────────
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
+  getAppVersion: () => ipcRenderer.invoke('updater:getVersion'),
+  onUpdaterStatus: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('updater:status', handler);
+    return () => ipcRenderer.removeListener('updater:status', handler);
+  },
+  onUpdaterProgress: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('updater:progress', handler);
+    return () => ipcRenderer.removeListener('updater:progress', handler);
+  },
+
   // ── Real-Time Events (Agent → Renderer) ───────────────────────────────────
   onAgentEvent: (callback) => {
     const handler = (_, data) => callback(data);
@@ -48,3 +63,4 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('agent:connectivity', handler);
   },
 });
+

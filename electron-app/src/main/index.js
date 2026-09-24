@@ -3,6 +3,49 @@ const path = require('path');
 const Store = require('electron-store');
 const agent = require('./agent');
 const ipcHandlers = require('./ipc-handlers');
+const { autoUpdater } = require('electron-updater');
+
+// ─── Auto Updater setup ───────────────────────────────────────────────────────
+autoUpdater.autoDownload = true;      // download in background automatically
+autoUpdater.autoInstallOnAppQuit = true; // install when user quits normally
+
+function setupAutoUpdater(win) {
+  autoUpdater.on('checking-for-update', () => {
+    if (win && !win.isDestroyed()) win.webContents.send('updater:status', { status: 'checking' });
+  });
+  autoUpdater.on('update-available', (info) => {
+    if (win && !win.isDestroyed()) win.webContents.send('updater:status', { status: 'available', version: info.version });
+  });
+  autoUpdater.on('update-not-available', () => {
+    if (win && !win.isDestroyed()) win.webContents.send('updater:status', { status: 'up-to-date', version: app.getVersion() });
+  });
+  autoUpdater.on('download-progress', (p) => {
+    if (win && !win.isDestroyed()) win.webContents.send('updater:progress', { percent: Math.round(p.percent), speed: p.bytesPerSecond, transferred: p.transferred, total: p.total });
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    if (win && !win.isDestroyed()) win.webContents.send('updater:status', { status: 'downloaded', version: info.version });
+  });
+  autoUpdater.on('error', (err) => {
+    if (win && !win.isDestroyed()) win.webContents.send('updater:status', { status: 'error', message: err.message });
+  });
+}
+
+// IPC: renderer triggers check or install
+ipcMain.handle('updater:check', async () => {
+  try {
+    await autoUpdater.checkForUpdates();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('updater:install', () => {
+  autoUpdater.quitAndInstall(false, true); // don't force — let user see the installer
+});
+
+ipcMain.handle('updater:getVersion', () => app.getVersion());
+
 
 // ─── Crash visibility (dev) ───────────────────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -116,6 +159,14 @@ app.whenReady().then(() => {
       mainWindow.webContents.send(event, data);
     }
   });
+
+  // Setup auto-updater and check for updates 5s after launch (give time for UI to load)
+  setupAutoUpdater(mainWindow);
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(err => {
+      console.warn('Update check failed (possibly offline):', err.message);
+    });
+  }, 5000);
 });
 
 app.on('window-all-closed', (e) => {
