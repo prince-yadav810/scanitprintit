@@ -143,21 +143,45 @@ async function processJob(job) {
       }
     } else if (os.platform() === 'win32') {
       try {
-        const selectedPrinter = store?.get('selectedPrinter') || undefined;
+        // ── Validate downloaded file is non-empty
+        const fileStats = fs.statSync(tempPath);
+        if (fileStats.size < 100) {
+          throw new Error(`Downloaded file too small (${fileStats.size} bytes) — likely corrupt`);
+        }
+        emit('agent:event', { type: 'info', message: `File OK: ${(fileStats.size / 1024).toFixed(1)} KB` });
+
+        // ── Resolve printer (auto-pick first real printer if none configured)
+        let selectedPrinter = store?.get('selectedPrinter') || null;
+        if (!selectedPrinter) {
+          try {
+            const availPrinters = await ptp.getPrinters();
+            if (availPrinters.length > 0) {
+              selectedPrinter = availPrinters[0].name;
+              emit('agent:event', { type: 'info', message: `Auto-selected printer: ${selectedPrinter}` });
+            }
+          } catch {}
+        }
+        if (!selectedPrinter) throw new Error('No printer found. Configure one in Settings.');
+
+        // ── CORRECT pdf-to-printer options
         const printOptions = {
-          copies: job.settings?.copies || 1,
-          sides: job.settings?.sides === 'DOUBLE' ? 'two-sided-long-edge' : 'one-sided',
-          ...(selectedPrinter ? { printer: selectedPrinter } : {}),
-          // Use Windows shell "print" verb — silent, no UI dialog
-          win32PrintJobType: 'pdf',
+          printer: selectedPrinter,
+          side:       (job.settings?.sides === 'DOUBLE') ? 'duplex' : 'simplex',
+          monochrome: (job.settings?.mode || 'BW') === 'BW',
+          silent: true,
+          scale: 'fit',
         };
-        emit('agent:event', { type: 'info', message: `Sending to printer: ${selectedPrinter || 'default'}` });
-        await ptp.print(tempPath, printOptions);
-        // Small delay to allow Windows spooler to copy the file before we delete it
-        await new Promise(r => setTimeout(r, 3000));
-        emit('agent:event', { type: 'info', message: `Print job spooled for ${file.originalName}` });
+        emit('agent:event', { type: 'info', message: `Printing to: "${selectedPrinter}" | BW=${printOptions.monochrome} duplex=${job.settings?.sides === 'DOUBLE'}` });
+
+        const copies = parseInt(job.settings?.copies) || 1;
+        for (let c = 0; c < copies; c++) {
+          await ptp.print(tempPath, printOptions);
+          if (copies > 1) await new Promise(r => setTimeout(r, 500));
+        }
+        await new Promise(r => setTimeout(r, 4000)); // let spooler copy file
+        emit('agent:event', { type: 'info', message: `✅ Spooled: ${file.originalName}` });
       } catch (err) {
-        emit('agent:event', { type: 'error', message: `Print failed: ${err.message}` });
+        emit('agent:event', { type: 'error', message: `❌ Print error: ${err.message}` });
         allPrinted = false;
         await updateJobStatus(job.id, 'NEEDS_ATTENTION');
       }

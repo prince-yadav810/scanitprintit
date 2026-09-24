@@ -1,8 +1,8 @@
-version: 1.0.1
+version: 1.0.2
 files:
-  - url: ScanItPrintIt-Agent-Setup-1.0.1.exe
-    sha512: mws9/2qdR/ATQakjJUPaZsBiPdkbJdyJZs4l9BTUZw2WUffglPLMUPgKmSWDPJwtDCYbgfDbgTCTAzTKXU4WIQ==
-    size: 84684309
-path: ScanItPrintIt-Agent-Setup-1.0.1.exe
-sha512: mws9/2qdR/ATQakjJUPaZsBiPdkbJdyJZs4l9BTUZw2WUffglPLMUPgKmSWDPJwtDCYbgfDbgTCTAzTKXU4WIQ==
-releaseDate: '2026-09-24T06:28:17.692Z'
+  - url: ScanItPrintIt-Agent-Setup-1.0.2.exe
+    sha512: Zk4RWzk4fupoIMc0Jb7IU2lgAsFYfdANXsvzRXLMR/rHE6ESqWAyzw4V+NlnR8v+CzkvVY4GKvFUpapF7AqRnA==
+    size: 84684238
+path: ScanItPrintIt-Agent-Setup-1.0.2.exe
+sha512: Zk4RWzk4fupoIMc0Jb7IU2lgAsFYfdANXsvzRXLMR/rHE6ESqWAyzw4V+NlnR8v+CzkvVY4GKvFUpapF7AqRnA==
+releaseDate: '2026-09-24T06:51:55.838Z'
