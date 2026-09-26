@@ -13,6 +13,7 @@ const https = require('https');
 const http  = require('http');
 const ptp   = require('pdf-to-printer');
 const { exec } = require('child_process');
+const { BrowserWindow } = require('electron');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
@@ -100,7 +101,9 @@ function downloadFile(url, destPath, maxRedirects = 5) {
         }
         const stream = fs.createWriteStream(destPath);
         res.pipe(stream);
-        stream.on('finish', () => { stream.close(); resolve(); });
+        stream.on('finish', () => { 
+          stream.close(() => resolve()); 
+        });
         stream.on('error', (err) => {
           fs.unlink(destPath, () => {});
           reject(err);
@@ -210,20 +213,60 @@ async function processJob(job) {
         }
         if (!selectedPrinter) throw new Error('No printer found. Configure one in Settings.');
 
-        // ── Step 4: Print using pdf-to-printer with MINIMAL options
-        //    Only pass the printer name. No monochrome, no scale, no silent, no side.
-        //    This gives SumatraPDF the best chance of working with basic GDI/CAPT printers.
-        const printOptions = { printer: selectedPrinter };
-        emit('agent:event', { type: 'info', message: `🖨️ Sending to: "${selectedPrinter}" via SumatraPDF...` });
-
+        emit('agent:event', { type: 'info', message: `🖨️ Sending to: "${selectedPrinter}" via Electron Native Print...` });
+        
         const copies = parseInt(job.settings?.copies) || 1;
-        for (let c = 0; c < copies; c++) {
-          emit('agent:event', { type: 'info', message: `Printing copy ${c + 1}/${copies}...` });
-          await ptp.print(tempPath, printOptions);
-          emit('agent:event', { type: 'info', message: `Copy ${c + 1} sent to spooler` });
-          // Wait between copies to let GDI/CAPT printers finish processing
-          if (copies > 1) await new Promise(r => setTimeout(r, 3000));
-        }
+        
+        // ── Step 4: Print using Electron Chromium Engine
+        await new Promise((resolvePrint, rejectPrint) => {
+          let printWin = new BrowserWindow({ 
+            show: false,
+            webPreferences: { plugins: true } // Required to load PDFs natively
+          });
+
+          // Safety timeout
+          const safetyTimer = setTimeout(() => {
+            if (printWin) {
+              printWin.close();
+              rejectPrint(new Error('Print job timed out. The printer might be offline or unresponsive.'));
+            }
+          }, 60000); // 60s timeout
+
+          printWin.on('closed', () => { printWin = null; });
+
+          printWin.loadURL(`file://${tempPath}`);
+          printWin.webContents.on('did-finish-load', () => {
+            // Wait 2 seconds for PDF viewer to initialize
+            setTimeout(() => {
+              let currentCopy = 1;
+              const doPrint = () => {
+                emit('agent:event', { type: 'info', message: `Printing copy ${currentCopy}/${copies}...` });
+                printWin.webContents.print({
+                  silent: true,
+                  deviceName: selectedPrinter,
+                  copies: 1 // Print one copy at a time for safety
+                }, (success, failureReason) => {
+                  if (!success) {
+                    clearTimeout(safetyTimer);
+                    printWin.close();
+                    rejectPrint(new Error(`Native print failed: ${failureReason}`));
+                  } else {
+                    emit('agent:event', { type: 'info', message: `Copy ${currentCopy} spooled successfully` });
+                    if (currentCopy < copies) {
+                      currentCopy++;
+                      setTimeout(doPrint, 3000); // Wait 3s between copies
+                    } else {
+                      clearTimeout(safetyTimer);
+                      printWin.close();
+                      resolvePrint();
+                    }
+                  }
+                });
+              };
+              doPrint();
+            }, 2000);
+          });
+        });
 
         // ── Step 5: Wait for CAPT/GDI printer to fully spool the job
         //    Canon LBP2900 is a host-based printer — it needs the computer to
