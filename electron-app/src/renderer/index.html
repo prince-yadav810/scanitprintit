@@ -914,6 +914,7 @@ function setUpdateStatus(type, message) {
 
 // ─── Real-Time Event Listeners ────────────────────────────────────────────────
 window.api.onConnectivityChange(updateConnectivity);
+window.api.onAgentEvent((data) => addAlert(data.message));
 
 window.api.onNewJob((job) => {
   addAlert(`📥 New job #${job.orderNumber} arrived (${job.pageCount} pages)${job.customerName ? ' — ' + job.customerName : ''}`);

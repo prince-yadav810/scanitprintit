@@ -1,6 +1,6 @@
 {
   "name": "scanitprintit-agent",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "ScanItPrintIt Shop Owner Dashboard & Print Agent",
   "main": "src/main/index.js",
   "author": "ScanItPrintIt",
