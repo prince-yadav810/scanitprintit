@@ -73,17 +73,44 @@ async function updateJobStatus(orderId, status) {
   }
 }
 
-function downloadFile(url, destPath) {
-  const client = url.startsWith('https') ? https : http;
+function downloadFile(url, destPath, maxRedirects = 5) {
   return new Promise((resolve, reject) => {
-    const stream = fs.createWriteStream(destPath);
-    client.get(url, (res) => {
-      res.pipe(stream);
-      stream.on('finish', () => { stream.close(); resolve(); });
-    }).on('error', (err) => {
-      fs.unlink(destPath, () => {});
-      reject(err);
-    });
+    const doRequest = (currentUrl, redirectsLeft) => {
+      const client = currentUrl.startsWith('https') ? https : http;
+      client.get(currentUrl, (res) => {
+        // Follow redirects (301, 302, 307, 308)
+        if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
+          if (redirectsLeft <= 0) {
+            reject(new Error('Too many redirects'));
+            return;
+          }
+          // Handle relative redirects
+          let redirectUrl = res.headers.location;
+          if (redirectUrl.startsWith('/')) {
+            const parsed = new URL(currentUrl);
+            redirectUrl = `${parsed.protocol}//${parsed.host}${redirectUrl}`;
+          }
+          emit('agent:event', { type: 'info', message: `Following redirect → ${redirectUrl.substring(0, 80)}...` });
+          doRequest(redirectUrl, redirectsLeft - 1);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+          return;
+        }
+        const stream = fs.createWriteStream(destPath);
+        res.pipe(stream);
+        stream.on('finish', () => { stream.close(); resolve(); });
+        stream.on('error', (err) => {
+          fs.unlink(destPath, () => {});
+          reject(err);
+        });
+      }).on('error', (err) => {
+        fs.unlink(destPath, () => {});
+        reject(err);
+      });
+    };
+    doRequest(url, maxRedirects);
   });
 }
 
@@ -146,39 +173,65 @@ async function processJob(job) {
       }
     } else if (os.platform() === 'win32') {
       try {
-        // ── Validate downloaded file is non-empty
+        // ── Step 1: Validate downloaded file exists and is non-empty
         const fileStats = fs.statSync(tempPath);
         if (fileStats.size < 100) {
           throw new Error(`Downloaded file too small (${fileStats.size} bytes) — likely corrupt`);
         }
-        emit('agent:event', { type: 'info', message: `File OK: ${(fileStats.size / 1024).toFixed(1)} KB` });
+        emit('agent:event', { type: 'info', message: `📄 File downloaded: ${(fileStats.size / 1024).toFixed(1)} KB → ${tempPath}` });
 
-        // ── Resolve printer (auto-pick first real printer if none configured)
+        // ── Step 2: Validate the file is actually a PDF (check magic bytes)
+        const headerBuf = Buffer.alloc(5);
+        const fd = fs.openSync(tempPath, 'r');
+        fs.readSync(fd, headerBuf, 0, 5, 0);
+        fs.closeSync(fd);
+        const headerStr = headerBuf.toString('ascii', 0, 4);
+        if (headerStr !== '%PDF') {
+          // Log what we actually got so we can debug
+          const preview = fs.readFileSync(tempPath, 'utf8').substring(0, 200);
+          emit('agent:event', { type: 'error', message: `❌ NOT a PDF! Header: "${headerStr}" | Preview: ${preview}` });
+          throw new Error(`Downloaded file is not a valid PDF (got "${headerStr}" instead of "%PDF"). The download URL may have redirected to an HTML page.`);
+        }
+        emit('agent:event', { type: 'info', message: `✅ PDF validated (header: %PDF)` });
+
+        // ── Step 3: Resolve printer (auto-pick first available if none configured)
         let selectedPrinter = store?.get('selectedPrinter') || null;
         if (!selectedPrinter) {
           try {
             const availPrinters = await ptp.getPrinters();
+            emit('agent:event', { type: 'info', message: `🖨️ Available printers: ${availPrinters.map(p => p.name).join(', ')}` });
             if (availPrinters.length > 0) {
               selectedPrinter = availPrinters[0].name;
               emit('agent:event', { type: 'info', message: `Auto-selected printer: ${selectedPrinter}` });
             }
-          } catch {}
+          } catch (printerErr) {
+            emit('agent:event', { type: 'error', message: `Printer detection error: ${printerErr.message}` });
+          }
         }
         if (!selectedPrinter) throw new Error('No printer found. Configure one in Settings.');
 
-        emit('agent:event', { type: 'info', message: `Printing to: "${selectedPrinter}" (Native OS Spooler)` });
+        // ── Step 4: Print using pdf-to-printer with MINIMAL options
+        //    Only pass the printer name. No monochrome, no scale, no silent, no side.
+        //    This gives SumatraPDF the best chance of working with basic GDI/CAPT printers.
+        const printOptions = { printer: selectedPrinter };
+        emit('agent:event', { type: 'info', message: `🖨️ Sending to: "${selectedPrinter}" via SumatraPDF...` });
 
         const copies = parseInt(job.settings?.copies) || 1;
         for (let c = 0; c < copies; c++) {
-          // Use Native Windows PrintTo verb via PowerShell (works flawlessly for GDI/CAPT printers like Canon LBP2900)
-          const psCommand = `Start-Process -FilePath "${tempPath}" -Verb PrintTo "${selectedPrinter}" -PassThru | %{sleep 10;$_} | kill`;
-          await execPromise(`powershell -Command "${psCommand}"`).catch(e => {
-            console.error("PowerShell print error (might still have printed):", e);
-          });
-          if (copies > 1) await new Promise(r => setTimeout(r, 1500));
+          emit('agent:event', { type: 'info', message: `Printing copy ${c + 1}/${copies}...` });
+          await ptp.print(tempPath, printOptions);
+          emit('agent:event', { type: 'info', message: `Copy ${c + 1} sent to spooler` });
+          // Wait between copies to let GDI/CAPT printers finish processing
+          if (copies > 1) await new Promise(r => setTimeout(r, 3000));
         }
+
+        // ── Step 5: Wait for CAPT/GDI printer to fully spool the job
+        //    Canon LBP2900 is a host-based printer — it needs the computer to
+        //    finish rendering before the data is sent to the hardware.
+        emit('agent:event', { type: 'info', message: `⏳ Waiting for printer spooler to finish...` });
+        await new Promise(r => setTimeout(r, 8000));
         
-        emit('agent:event', { type: 'info', message: `✅ Spooled: ${file.originalName}` });
+        emit('agent:event', { type: 'info', message: `✅ Print complete: ${file.originalName}` });
       } catch (err) {
         emit('agent:event', { type: 'error', message: `❌ Print error: ${err.message}` });
         allPrinted = false;
