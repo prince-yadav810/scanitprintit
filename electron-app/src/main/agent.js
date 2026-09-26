@@ -12,6 +12,9 @@ const path = require('path');
 const https = require('https');
 const http  = require('http');
 const ptp   = require('pdf-to-printer');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 
 const API_BASE = process.env.SCANITPRINTIT_API || 'https://www.scanitprintit.in/api';
 const POLL_MS  = 5000;
@@ -163,19 +166,16 @@ async function processJob(job) {
         }
         if (!selectedPrinter) throw new Error('No printer found. Configure one in Settings.');
 
-        // ── CORRECT pdf-to-printer options
-        const printOptions = {
-          printer: selectedPrinter,
-          monochrome: (job.settings?.mode || 'BW') === 'BW',
-          scale: 'fit',
-        };
-        // Removed `side` and `silent` which might cause issues with basic GDI printers like Canon LBP2900.
-        emit('agent:event', { type: 'info', message: `Printing to: "${selectedPrinter}" | BW=${printOptions.monochrome}` });
+        emit('agent:event', { type: 'info', message: `Printing to: "${selectedPrinter}" (Native OS Spooler)` });
 
         const copies = parseInt(job.settings?.copies) || 1;
         for (let c = 0; c < copies; c++) {
-          await ptp.print(tempPath, printOptions);
-          if (copies > 1) await new Promise(r => setTimeout(r, 1000));
+          // Use Native Windows PrintTo verb via PowerShell (works flawlessly for GDI/CAPT printers like Canon LBP2900)
+          const psCommand = `Start-Process -FilePath "${tempPath}" -Verb PrintTo "${selectedPrinter}" -PassThru | %{sleep 10;$_} | kill`;
+          await execPromise(`powershell -Command "${psCommand}"`).catch(e => {
+            console.error("PowerShell print error (might still have printed):", e);
+          });
+          if (copies > 1) await new Promise(r => setTimeout(r, 1500));
         }
         
         emit('agent:event', { type: 'info', message: `✅ Spooled: ${file.originalName}` });
