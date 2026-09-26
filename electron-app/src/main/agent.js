@@ -239,29 +239,28 @@ async function processJob(job) {
             // Wait 2 seconds for PDF viewer to initialize
             setTimeout(() => {
               let currentCopy = 1;
-              const doPrint = () => {
+              const doPrint = async () => {
                 emit('agent:event', { type: 'info', message: `Printing copy ${currentCopy}/${copies}...` });
-                printWin.webContents.print({
-                  silent: true,
-                  deviceName: selectedPrinter,
-                  copies: 1 // Print one copy at a time for safety
-                }, (success, failureReason) => {
-                  if (!success) {
+                try {
+                  await printWin.webContents.print({
+                    silent: true,
+                    deviceName: selectedPrinter,
+                    copies: 1 // Print one copy at a time for safety
+                  });
+                  emit('agent:event', { type: 'info', message: `Copy ${currentCopy} spooled successfully` });
+                  if (currentCopy < copies) {
+                    currentCopy++;
+                    setTimeout(doPrint, 3000); // Wait 3s between copies
+                  } else {
                     clearTimeout(safetyTimer);
                     printWin.close();
-                    rejectPrint(new Error(`Native print failed: ${failureReason}`));
-                  } else {
-                    emit('agent:event', { type: 'info', message: `Copy ${currentCopy} spooled successfully` });
-                    if (currentCopy < copies) {
-                      currentCopy++;
-                      setTimeout(doPrint, 3000); // Wait 3s between copies
-                    } else {
-                      clearTimeout(safetyTimer);
-                      printWin.close();
-                      resolvePrint();
-                    }
+                    resolvePrint();
                   }
-                });
+                } catch (printErr) {
+                  clearTimeout(safetyTimer);
+                  printWin.close();
+                  rejectPrint(new Error(`Native print failed: ${printErr.message}`));
+                }
               };
               doPrint();
             }, 2000);
