@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.scanitprintit.in"),
   title: "ScanItPrintIt",
   description: "Scan, upload, and print instantly at any ScanItPrintIt shop.",
 };
