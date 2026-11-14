@@ -7,9 +7,11 @@ const { shell, dialog } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
-const ptp  = require('pdf-to-printer');
 const QRCode = require('qrcode');
 const agent = require('./agent');
+const { getDiagnostics } = require('./diagnostics');
+const { getPrinterSnapshot } = require('./windows-printer');
+const { describePrinter } = require('./printer-health');
 
 module.exports = {
   register(ipcMain, store, mainWindow) {
@@ -26,12 +28,14 @@ module.exports = {
       }
       store.delete('token');
       store.delete('printedJobs');
+      getDiagnostics()?.reset();
       return { success: true };
     });
 
     ipcMain.handle('auth:getState', () => {
       return {
         paired: !!store.get('token'),
+        diagnosticsOnly: agent.isDiagnosticsOnly(),
         shopName: store.get('shopName'),
         shopSlug: store.get('shopSlug'),
         shopId:   store.get('shopId'),
@@ -86,24 +90,25 @@ module.exports = {
 
     // ── Queue Actions ─────────────────────────────────────────────────────────
     ipcMain.handle('queue:retry', async (_, orderId) => {
-      // Remove from printed cache so agent picks it up again
-      const printedJobs = store.get('printedJobs', []);
-      store.set('printedJobs', printedJobs.filter(id => id !== orderId));
-      return { success: true };
+      try { return await agent.retryJob(orderId); }
+      catch (error) { return { success: false, error: error.message }; }
     });
 
     ipcMain.handle('queue:cancel', async (_, orderId) => {
-      const res = await agent.cancelJob(orderId);
-      return res;
+      try { return await agent.cancelJob(orderId); }
+      catch (error) { return { success: false, error: error.message }; }
     });
+
+    ipcMain.handle('diagnostics:status', () => getDiagnostics()?.status() || { pending: 0, lastSyncedAt: null, history: [] });
+    ipcMain.handle('diagnostics:printTestPage', () => agent.printTestPage());
 
     // ── Settings ──────────────────────────────────────────────────────────────
     ipcMain.handle('settings:get', () => {
       return {
         selectedPrinter:    store.get('selectedPrinter', null),
         soundEnabled:       store.get('soundEnabled', false),
-        printerHealthEnabled: store.get('printerHealthEnabled', false),
-        autoLaunch:         store.get('autoLaunch', true),
+        printerHealthEnabled: store.get('printerHealthEnabled', true),
+        autoLaunch:         !agent.isDiagnosticsOnly() && store.get('autoLaunch', true),
       };
     });
 
@@ -120,7 +125,7 @@ module.exports = {
       if ('selectedPrinter' in settings) store.set('selectedPrinter', settings.selectedPrinter);
       if ('soundEnabled' in settings)    store.set('soundEnabled', settings.soundEnabled);
       if ('printerHealthEnabled' in settings) store.set('printerHealthEnabled', settings.printerHealthEnabled);
-      if ('autoLaunch' in settings) {
+      if ('autoLaunch' in settings && !agent.isDiagnosticsOnly()) {
         store.set('autoLaunch', settings.autoLaunch);
         const { app } = require('electron');
         app.setLoginItemSettings({ openAtLogin: settings.autoLaunch });
@@ -133,15 +138,23 @@ module.exports = {
       return { success: true };
     });
 
+    ipcMain.handle('settings:printerHealth', async () => {
+      const selected = store.get('selectedPrinter', null);
+      if (!store.get('printerHealthEnabled', true)) return {
+        state: 'disabled', label: 'Printer monitoring off', printer: selected, checkedAt: new Date().toISOString(),
+      };
+      return describePrinter(await getPrinterSnapshot(selected), selected);
+    });
+
     ipcMain.handle('settings:getPrinters', async () => {
       try {
         if (os.platform() === 'win32') {
-          const printers = await ptp.getPrinters();
-          return { success: true, printers: printers.map(p => p.name) };
+          const printers = await mainWindow.webContents.getPrintersAsync();
+          return { success: true, printers: printers.map(p => p.name), defaultPrinter: printers.find(p => p.isDefault)?.name || null };
         }
         return { success: true, printers: [] };
-      } catch {
-        return { success: true, printers: [] };
+      } catch (error) {
+        return { success: false, printers: [], error: error.message };
       }
     });
 

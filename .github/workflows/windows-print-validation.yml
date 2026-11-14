@@ -1,0 +1,73 @@
+name: Windows print validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/windows-print-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  packaged-renderer:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: electron-app
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            electron-app
+            .github
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: electron-app/package-lock.json
+      - run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Build current Windows app archive
+        run: npx electron-builder --win --x64 --dir --publish never -c.directories.output=dist/windows-ci
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Put candidate archive in representative Windows path
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'ScanItPrintIt space # unicode परीक्षण\candidate\resources'
+          New-Item -ItemType Directory -Force $target | Out-Null
+          Copy-Item 'dist/windows-ci/win-unpacked/resources/app.asar' $target
+          "CANDIDATE_ARCHIVE=$(Join-Path $target 'app.asar')" >> $env:GITHUB_ENV
+      - name: Download known failing 1.1.9 archive for comparison
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'ScanItPrintIt space # unicode परीक्षण\baseline'
+          New-Item -ItemType Directory -Force $target | Out-Null
+          $exe = Join-Path $target 'Support-1.1.9.exe'
+          Invoke-WebRequest 'https://github.com/prince-yadav810/scanitprintit/releases/download/support-1.1.9-20261113/ScanItPrintIt-Support-1.1.9.exe' -OutFile $exe
+          if ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLower() -ne '5943e88a5594cebf482dcc81f887188431f24a9621fc61d4ff70a794dc6f6ab4') { throw 'Baseline executable checksum mismatch' }
+          & 7z x $exe 'resources/app.asar' "-o$target" -y
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline archive extraction failed' }
+          "BASELINE_ARCHIVE=$(Join-Path $target 'resources/app.asar')" >> $env:GITHUB_ENV
+      - name: Observe baseline on actual Windows
+        continue-on-error: true
+        run: |
+          foreach ($mode in @('load-probes', 'render', 'discovery-first', 'startup')) {
+            & .\node_modules\electron\dist\electron.exe tests/windows-packaged-smoke.cjs "$env:BASELINE_ARCHIVE" $mode windows-print-results/baseline
+            Write-Host "Baseline $mode exit code: $LASTEXITCODE"
+          }
+          exit 0
+      - name: Validate candidate on actual Windows
+        run: |
+          foreach ($mode in @('load-probes', 'render', 'discovery-first', 'startup')) {
+            & .\node_modules\electron\dist\electron.exe tests/windows-packaged-smoke.cjs "$env:CANDIDATE_ARCHIVE" $mode windows-print-results/candidate
+            if ($LASTEXITCODE -ne 0) { throw "Candidate $mode failed with $LASTEXITCODE" }
+          }
+      - name: Keep test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-print-results
+          path: electron-app/windows-print-results
+          if-no-files-found: warn

@@ -182,6 +182,11 @@
       <span class="titlebar-title" id="titlebar-shop">ScanItPrintIt Agent</span>
     </div>
 
+    <div id="support-banner" style="display:none; align-items:center; gap:16px; padding:12px 16px; background:var(--accent-light); border-bottom:1px solid var(--accent); flex-shrink:0;">
+      <div style="flex:1;"><strong id="support-build-label">ScanItPrintIt Support</strong><div style="font-size:12px; color:var(--text-secondary);">This support app does not process customer orders.</div></div>
+      <button class="btn btn-primary" id="btn-support-print-test" onclick="navigate('settings'); printTestPage()">Print test page</button>
+    </div>
+
     <!-- Offline banner -->
     <div id="offline-banner" class="offline-banner" style="display:none; margin: 8px 16px 0;">
       ⚠️ Offline — showing cached data from <span id="cache-age"></span>
@@ -352,7 +357,7 @@
             <div class="card-title">Printer Settings</div>
             <div class="settings-section">
               <div class="settings-row">
-                <div><div class="settings-label">Default Printer</div><div class="settings-desc">Overrides Windows system default</div></div>
+                <div><div class="settings-label">Default Printer</div><div class="settings-desc">Overrides Windows system default</div><button class="btn btn-sm btn-primary" id="btn-print-test" onclick="printTestPage()" style="margin-top:8px;">Print test page</button><div class="settings-desc" id="printer-test-result"></div></div>
                 <select id="printer-select" style="width:200px;" onchange="saveLocalSettings()">
                   <option value="">Use System Default</option>
                 </select>
@@ -402,7 +407,7 @@
                 <label class="toggle"><input type="checkbox" id="toggle-sound"><div class="toggle-slider"></div></label>
               </div>
               <div class="settings-row">
-                <div><div class="settings-label">🖨️ Printer Health Check</div><div class="settings-desc">Show ink/toner levels (supported printers only)</div></div>
+                <div><div class="settings-label">🖨️ Printer Health Check</div><div class="settings-desc">Refresh Windows printer status every 15 seconds. Some drivers cannot detect an unplugged cable.</div></div>
                 <label class="toggle"><input type="checkbox" id="toggle-printer-health"><div class="toggle-slider"></div></label>
               </div>
               <div class="settings-row">
@@ -422,6 +427,10 @@
               <div class="settings-row">
                 <div><div class="settings-label">Status</div></div>
                 <span id="set-conn-status" class="badge badge-success">Paired</span>
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-label">Support diagnostics</div><div class="settings-desc">Print errors and printer status sync automatically. Documents and passwords are excluded.</div></div>
+                <span id="diagnostic-status" class="settings-desc">Checking…</span>
               </div>
               <div style="padding:0 4px;">
                 <button class="btn btn-danger" onclick="doUnpair()">Disconnect & Re-pair</button>
@@ -470,6 +479,8 @@ const state = {
   shopSlug: '',
   dashboardData: null,
   alertLog: [],
+  diagnosticIds: new Set(),
+  diagnosticHistory: [],
 };
 
 // ─── Status Badges ───────────────────────────────────────────────────────────
@@ -550,6 +561,29 @@ function updateConnectivity({ online, apiReachable }) {
   if (online) { dot.className = 'dot green'; lbl.textContent = 'Online'; }
   else { dot.className = 'dot red'; lbl.textContent = apiReachable === false ? 'API Down' : 'Offline'; }
   document.getElementById('offline-banner').style.display = online ? 'none' : 'flex';
+}
+
+let printerRefresh = null;
+let printerMonitor = null;
+function refreshPrinterHealth() {
+  if (printerRefresh) return printerRefresh;
+  printerRefresh = (async () => {
+    let health;
+    try { health = await window.api.getPrinterHealth(); }
+    catch { health = { state: 'unknown', label: 'Printer status unavailable' }; }
+    const dot = document.getElementById('dot-printer');
+    const label = document.getElementById('label-printer');
+    // No green "connected" claim: an installed/idle driver is not a cable test.
+    dot.className = 'dot ' + (['offline', 'missing', 'error', 'paused'].includes(health.state) ? 'red' : 'yellow');
+    label.textContent = [health.printer, health.label].filter(Boolean).join(' — ');
+    label.title = health.checkedAt ? `Windows status checked ${new Date(health.checkedAt).toLocaleTimeString()}` : '';
+  })().finally(() => { printerRefresh = null; });
+  return printerRefresh;
+}
+function startPrinterMonitor() {
+  if (printerMonitor) clearInterval(printerMonitor);
+  void refreshPrinterHealth();
+  printerMonitor = setInterval(refreshPrinterHealth, 15000);
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -648,11 +682,13 @@ function renderQueue(jobs) {
       : `<span class="queue-chip chip-bw">B&W</span>`;
     const simChip = isSim ? `<span class="queue-chip chip-sim">SIM</span>` : '';
     const customerTag = j.customerName ? `<span style="font-size:11px;color:var(--accent);font-weight:600;">👤 ${j.customerName}</span>` : '';
+    const failure = isFailed && state.diagnosticHistory.find(event => event.orderId === j.id && event.code === 'ATTEMPT_FAILED');
     return `<div class="queue-item ${isPrinting ? 'printing' : ''} ${isFailed ? 'failed' : ''} ${isSim ? 'simulated' : ''}">
       <div class="queue-status-dot" style="background:${dotColor};${isPrinting ? 'box-shadow:0 0 6px '+dotColor : ''}"></div>
       <div class="queue-info">
         <div class="queue-order">#${j.orderNumber} ${customerTag}</div>
         <div class="queue-file">${j.files?.[0]?.originalName || 'Unknown file'}</div>
+        ${failure ? `<div class="queue-file" style="color:var(--danger);">${escapeHtml(failure.stage)}: ${escapeHtml(failure.message)}</div>` : ''}
       </div>
       <div class="queue-meta">
         ${modeChip} ${simChip}
@@ -668,14 +704,16 @@ function renderQueue(jobs) {
 }
 
 async function retryJob(id) {
-  await window.api.retryJob(id);
-  addAlert(`🔄 Retry requested for job`);
+  const result = await window.api.retryJob(id);
+  if (!result.success) { alert(result.error); return; }
+  addAlert('🔄 Order requeued on the server');
   loadDashboard();
 }
 
 async function cancelJob(id) {
   if (!confirm('Cancel this print job?')) return;
-  await window.api.cancelJob(id);
+  const result = await window.api.cancelJob(id);
+  if (!result.success) { alert(result.error); return; }
   loadDashboard();
 }
 
@@ -769,7 +807,7 @@ async function loadSettings() {
     document.getElementById('qr-preview-wrap').innerHTML = `<div class="qr-preview"><img src="${qr.dataUrl}" style="width:160px;height:160px;display:block;"></div>`;
   }
 
-  // Printers — show connected printer in status bar too
+  // Installed printers are configuration choices, not connection checks.
   const ps = await window.api.getPrinters();
   const sel = document.getElementById('printer-select');
   sel.innerHTML = '<option value="">Use System Default</option>';
@@ -781,17 +819,15 @@ async function loadSettings() {
     sel.appendChild(opt);
   });
 
-  // Update printer status dot + label
-  const printerDot = document.getElementById('dot-printer');
-  const printerLbl = document.getElementById('label-printer');
-  if (printers.length > 0) {
-    const activePrinter = s.selectedPrinter || printers[0];
-    printerDot.className = 'dot green';
-    printerLbl.textContent = activePrinter;
-  } else {
-    printerDot.className = 'dot red';
-    printerLbl.textContent = 'No Printer';
+  // Keep a removed selection visible instead of silently selecting another printer.
+  if (s.selectedPrinter && !printers.includes(s.selectedPrinter)) {
+    const opt = document.createElement('option');
+    opt.value = s.selectedPrinter;
+    opt.textContent = `${s.selectedPrinter} (not installed)`;
+    opt.selected = true;
+    sel.appendChild(opt);
   }
+  void refreshPrinterHealth();
 
   // Load remote settings (current pricing)
   try {
@@ -829,6 +865,7 @@ async function saveLocalSettings() {
     selectedPrinter:      document.getElementById('printer-select').value,
     darkTheme:            document.getElementById('toggle-dark').checked,
   });
+  await refreshPrinterHealth();
   const btn = document.getElementById('btn-save-local');
   btn.textContent = '✅ Saved!';
   setTimeout(() => btn.textContent = '💾 Save', 2000);
@@ -873,13 +910,52 @@ async function downloadQr() {
 }
 
 // ─── Alert Log ────────────────────────────────────────────────────────────────
-function addAlert(msg) {
-  state.alertLog.unshift({ msg, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) });
+function escapeHtml(value) {
+  const element = document.createElement('span');
+  element.textContent = String(value);
+  return element.innerHTML;
+}
+
+function addAlert(msg, timestamp) {
+  state.alertLog.unshift({ msg, time: new Date(timestamp || Date.now()).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) });
   if (state.alertLog.length > 50) state.alertLog.pop();
   const el = document.getElementById('alert-log');
   el.innerHTML = state.alertLog.map(a => `<div style="padding:6px 0; border-bottom:1px solid var(--border-subtle);">
-    <span style="color:var(--text-muted); font-size:10px; margin-right:8px;">${a.time}</span>${a.msg}
+    <span style="color:var(--text-muted); font-size:10px; margin-right:8px;">${a.time}</span>${escapeHtml(a.msg)}
   </div>`).join('');
+}
+
+async function refreshDiagnostics() {
+  try {
+    const status = await window.api.getDiagnosticStatus();
+    state.diagnosticHistory = [...status.history].reverse();
+    for (const event of status.history) {
+      if (state.diagnosticIds.has(event.id)) continue;
+      state.diagnosticIds.add(event.id);
+      if (event.level !== 'info' || ['ATTEMPT_COMPLETED', 'RENDER_SELF_TEST_PASSED'].includes(event.code)) {
+        addAlert(`${event.stage}: ${event.message}`, event.timestamp);
+      }
+    }
+    const label = document.getElementById('diagnostic-status');
+    if (label) label.textContent = status.localError ? 'Local storage error' : status.pending
+      ? `${status.pending} waiting to sync${status.lastError ? ' — will retry' : ''}`
+      : status.lastSyncedAt ? 'Synced to support' : 'Saved on this PC';
+  } catch { /* Older agents do not have this endpoint. */ }
+}
+
+async function printTestPage() {
+  const buttons = ['btn-print-test', 'btn-support-print-test'].map(id => document.getElementById(id));
+  const label = document.getElementById('printer-test-result');
+  if (buttons.some(button => button.disabled)) return;
+  buttons.forEach(button => { button.disabled = true; });
+  label.textContent = 'Sending one test page…';
+  try {
+    const result = await window.api.printTestPage();
+    label.textContent = result.success ? 'Windows accepted the test page. Check the printer for paper output.' : result.error;
+    addAlert(label.textContent);
+    await refreshDiagnostics();
+  } catch (error) { label.textContent = error.message; }
+  finally { buttons.forEach(button => { button.disabled = false; }); }
 }
 
 // ─── Auto-Updater ─────────────────────────────────────────────────────────────
@@ -899,7 +975,8 @@ async function checkForUpdates() {
 }
 
 async function installUpdate() {
-  await window.api.installUpdate();
+  const result = await window.api.installUpdate();
+  if (result && !result.success) setUpdateStatus('error', result.error);
 }
 
 function setUpdateStatus(type, message) {
@@ -958,7 +1035,17 @@ window.api.onUpdaterProgress((data) => {
 
 // ─── Initialise ───────────────────────────────────────────────────────────────
 async function init() {
+  let version = '';
+  try {
+    version = await window.api.getAppVersion();
+    document.getElementById('current-version').textContent = `v${version}`;
+  } catch {}
   const auth = await window.api.getAuthState();
+  if (auth.diagnosticsOnly) {
+    document.title = `ScanItPrintIt Support v${version}`;
+    document.getElementById('support-build-label').textContent = `ScanItPrintIt Support v${version}`;
+    document.getElementById('support-banner').style.display = 'flex';
+  }
   if (!auth.paired) {
     document.getElementById('pair-screen').style.display = 'flex';
     document.getElementById('main-app').style.display = 'none';
@@ -967,6 +1054,9 @@ async function init() {
 
   document.getElementById('pair-screen').style.display = 'none';
   document.getElementById('main-app').style.display = 'flex';
+  if (auth.diagnosticsOnly) {
+    addAlert('Support mode: automatic order printing is paused. Use Settings → Print test page to test the printer.');
+  }
 
   // Restore theme
   const s = await window.api.getSettings();
@@ -979,36 +1069,16 @@ async function init() {
   // Date display
   document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
+  // Local printer monitoring must keep working even when the dashboard hangs.
+  startPrinterMonitor();
   await loadDashboard();
   await loadMonthlyStats();
 
-  // Load printer status on startup
-  try {
-    const ps = await window.api.getPrinters();
-    const savedSettings = await window.api.getSettings();
-    const printers = ps.printers || [];
-    const printerDot = document.getElementById('dot-printer');
-    const printerLbl = document.getElementById('label-printer');
-    if (printers.length > 0) {
-      const activePrinter = savedSettings.selectedPrinter || printers[0];
-      printerDot.className = 'dot green';
-      // No more truncation! Let it wrap naturally.
-      printerLbl.textContent = activePrinter;
-    } else {
-      printerDot.className = 'dot red';
-      printerLbl.textContent = 'No Printer';
-    }
-  } catch {}
-
   // Refresh dashboard every 10s
   setInterval(loadDashboard, 10000);
+  await refreshDiagnostics();
+  setInterval(refreshDiagnostics, 15000);
 
-  // Show current version
-  try {
-    const version = await window.api.getAppVersion();
-    const vEl = document.getElementById('current-version');
-    if (vEl) vEl.textContent = `v${version}`;
-  } catch {}
 }
 
 init();

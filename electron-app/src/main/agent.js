@@ -11,21 +11,23 @@ const fs   = require('fs');
 const path = require('path');
 const https = require('https');
 const http  = require('http');
-const ptp   = require('pdf-to-printer');
-const { exec } = require('child_process');
-const { BrowserWindow } = require('electron');
-const util = require('util');
-const execPromise = util.promisify(exec);
+const crypto = require('crypto');
+const { printDocument } = require('./native-print');
+const { recordDiagnostic, getDiagnostics } = require('./diagnostics');
 
 const API_BASE = process.env.SCANITPRINTIT_API || 'https://www.scanitprintit.in/api';
 const POLL_MS  = 5000;
-const VERSION  = '1.0.0';
+const VERSION  = require('../../package.json').version;
 
 let store    = null;
 let emit     = null;
 let pollTimer = null;
+let connectivityTimer = null;
 let isPolling = false;
 let isPrinting = false; // Block disconnect while printing
+let running = false;
+let activeJob = null;
+let diagnosticsOnly = false;
 
 // ─── API Helpers ─────────────────────────────────────────────────────────────
 function apiFetch(endpoint, method = 'GET', body = null) {
@@ -48,72 +50,117 @@ function apiFetch(endpoint, method = 'GET', body = null) {
   };
 
   return new Promise((resolve, reject) => {
-    const req = client.request(options, (res) => {
+    let req;
+    const timer = setTimeout(() => { req?.destroy(); reject(new Error('Request timeout')); }, 10000);
+    try { req = client.request(options, (res) => {
       let raw = '';
       res.on('data', (chunk) => (raw += chunk));
+      res.on('error', error => { clearTimeout(timer); reject(error); });
+      res.on('aborted', () => { clearTimeout(timer); reject(new Error('API response was interrupted.')); });
       res.on('end', () => {
+        clearTimeout(timer);
         try {
-          resolve({ status: res.statusCode, json: () => JSON.parse(raw) });
+          const data = JSON.parse(raw);
+          resolve({ status: res.statusCode, json: () => data });
         } catch {
           resolve({ status: res.statusCode, json: () => ({}) });
         }
       });
-    });
-    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Request timeout')); });
-    req.on('error', reject);
+    }); } catch (error) { clearTimeout(timer); reject(error); return; }
+    req.on('error', error => { clearTimeout(timer); reject(error); });
     if (payload) req.write(payload);
     req.end();
   });
 }
 
 async function updateJobStatus(orderId, status) {
-  try {
-    await apiFetch(`/agent/jobs/${orderId}/status`, 'POST', { status });
-  } catch (err) {
-    emit('agent:event', { type: 'warn', message: `Could not update status: ${err.message}` });
+  const res = await apiFetch(`/agent/jobs/${orderId}/status`, 'POST', { status });
+  const data = res.json();
+  if (res.status < 200 || res.status >= 300 || !data.success) {
+    const error = new Error(data.error || `Status update failed (HTTP ${res.status}).`);
+    error.statusCode = res.status;
+    throw error;
   }
+}
+
+// Persist final updates before sending: if the network fails after Windows
+// accepts a job, the next poll (or restart) syncs its result without reprinting.
+async function syncPendingStatuses() {
+  const pending = store?.get('pendingStatuses', {}) || {};
+  for (const [orderId, update] of Object.entries(pending)) {
+    try {
+      await updateJobStatus(orderId, update.status);
+      delete pending[orderId];
+      store?.set('pendingStatuses', pending);
+    } catch (error) {
+      emit('agent:event', { type: 'warn', message: `Order ${update.orderNumber}: status sync pending. ${error.message}` });
+      if (update.lastError !== error.message) {
+        recordDiagnostic({ level: 'warn', stage: 'status-sync', code: 'STATUS_SYNC_PENDING', orderId, message: error.message, data: { status: update.status, httpStatus: error.statusCode } });
+        update.lastError = error.message;
+        store?.set('pendingStatuses', pending);
+      }
+    }
+  }
+}
+
+async function finishJob(job, status) {
+  const pending = store?.get('pendingStatuses', {}) || {};
+  pending[job.id] = { status, orderNumber: job.orderNumber };
+  store?.set('pendingStatuses', pending);
+  await syncPendingStatuses();
+  emit('agent:jobStatus', { orderId: job.id, status, orderNumber: job.orderNumber });
 }
 
 function downloadFile(url, destPath, maxRedirects = 5) {
   return new Promise((resolve, reject) => {
-    const doRequest = (currentUrl, redirectsLeft) => {
-      const client = currentUrl.startsWith('https') ? https : http;
-      client.get(currentUrl, (res) => {
-        // Follow redirects (301, 302, 307, 308)
-        if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
-          if (redirectsLeft <= 0) {
-            reject(new Error('Too many redirects'));
+    let activeRequest;
+    let stream;
+    let settled = false;
+    let bytes = 0;
+    let contentType;
+    const timer = setTimeout(() => finish(new Error('Document download timed out.')), 30000);
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) {
+        activeRequest?.destroy();
+        stream?.destroy();
+        fs.unlink(destPath, () => {});
+        reject(error);
+      } else resolve({ bytes, contentType });
+    };
+    const request = (currentUrl, redirectsLeft) => {
+      try {
+        const parsed = new URL(currentUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported document URL.');
+        const client = parsed.protocol === 'https:' ? https : http;
+        activeRequest = client.get(parsed, (res) => {
+          if (settled) { res.resume(); return; }
+          if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+            res.resume();
+            if (!redirectsLeft) return finish(new Error('Too many document redirects.'));
+            try { request(new URL(res.headers.location, parsed).href, redirectsLeft - 1); }
+            catch (error) { finish(error); }
             return;
           }
-          // Handle relative redirects
-          let redirectUrl = res.headers.location;
-          if (redirectUrl.startsWith('/')) {
-            const parsed = new URL(currentUrl);
-            redirectUrl = `${parsed.protocol}//${parsed.host}${redirectUrl}`;
+          if (res.statusCode !== 200) {
+            res.resume();
+            return finish(new Error(`Download failed: HTTP ${res.statusCode}`));
           }
-          emit('agent:event', { type: 'info', message: `Following redirect → ${redirectUrl.substring(0, 80)}...` });
-          doRequest(redirectUrl, redirectsLeft - 1);
-          return;
-        }
-        if (res.statusCode !== 200) {
-          reject(new Error(`Download failed: HTTP ${res.statusCode}`));
-          return;
-        }
-        const stream = fs.createWriteStream(destPath);
-        res.pipe(stream);
-        stream.on('finish', () => { 
-          stream.close(() => resolve()); 
+          stream = fs.createWriteStream(destPath);
+          contentType = res.headers?.['content-type'] || null;
+          res.on('data', chunk => { bytes += chunk.length; });
+          res.on('error', finish);
+          res.on('aborted', () => finish(new Error('Document download was interrupted.')));
+          stream.on('error', finish);
+          stream.on('finish', () => stream.close(error => finish(error)));
+          res.pipe(stream);
         });
-        stream.on('error', (err) => {
-          fs.unlink(destPath, () => {});
-          reject(err);
-        });
-      }).on('error', (err) => {
-        fs.unlink(destPath, () => {});
-        reject(err);
-      });
+        activeRequest.on('error', finish);
+      } catch (error) { finish(error); }
     };
-    doRequest(url, maxRedirects);
+    request(url, maxRedirects);
   });
 }
 
@@ -133,188 +180,102 @@ async function checkConnectivity() {
 // ─── Print a single job ───────────────────────────────────────────────────────
 async function processJob(job) {
   isPrinting = true;
-  emit('agent:jobStatus', { orderId: job.id, status: 'PRINTING', orderNumber: job.orderNumber });
-  await updateJobStatus(job.id, 'PRINTING');
+  let claimed = false;
+  let stage = 'server-claim';
+  const attemptId = crypto.randomUUID();
+  const startedAt = Date.now();
+  let currentFileId;
+  const diagnostic = (code, message, data = {}, level = 'info') => recordDiagnostic({
+    code, message, level, stage, orderId: job.id, attemptId, fileId: currentFileId,
+    data: { ...data, elapsedMs: Date.now() - startedAt },
+  });
+  try {
+    diagnostic('ATTEMPT_STARTED', 'Starting print attempt', { fileCount: job.files?.length || 0, settings: job.settings, selectedPrinter: store?.get('selectedPrinter') });
+    // A 409 (already claimed) or rejected token must never result in a print.
+    await updateJobStatus(job.id, 'PRINTING');
+    claimed = true;
+    store?.set('activePrintAttempt', { orderId: job.id, orderNumber: job.orderNumber, attemptId, startedAt: new Date().toISOString(), stage: 'claimed' });
+    diagnostic('ORDER_CLAIMED', 'Server accepted the print claim');
+    emit('agent:jobStatus', { orderId: job.id, status: 'PRINTING', orderNumber: job.orderNumber });
+    stage = 'document-validation';
+    if (!job.files?.length) throw new Error('This order has no documents to print.');
 
-  const simMode = job.simulationEnabled === true;
-  const printedJobs = store?.get('printedJobs', []) || [];
-  let allPrinted = true;
-
-  for (const file of job.files) {
-    let downloadUrl = file.cloudinaryUrl;
-    const tempPath = path.join(os.tmpdir(), `sip_${job.orderNumber}_${Date.now()}.pdf`);
-
-    try {
-      await downloadFile(downloadUrl, tempPath);
-    } catch (err) {
-      emit('agent:event', { type: 'error', message: `Download failed for ${file.originalName}: ${err.message}` });
-      allPrinted = false;
-      continue;
+    const simMode = job.simulationEnabled === true;
+    for (const file of job.files) {
+      currentFileId = file.id;
+      stage = 'document-download';
+      const downloadUrl = file.convertedPdfUrl || file.cloudinaryUrl;
+      if (!downloadUrl || file.status === 'EXPIRED') throw new Error('The document is no longer available. Its upload has expired; retrying cannot restore it.');
+      const tempPath = path.join(os.tmpdir(), `sip_${crypto.randomUUID()}.pdf`);
+      try {
+        diagnostic('DOWNLOAD_STARTED', 'Downloading document');
+        const download = await downloadFile(downloadUrl, tempPath);
+        diagnostic('DOWNLOAD_COMPLETE', 'Document downloaded', download);
+        if (simMode) {
+          const simDir = path.join(os.homedir(), 'Desktop', 'scanitprintit-simulated-output');
+          fs.mkdirSync(simDir, { recursive: true });
+          const safeName = file.originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+          fs.copyFileSync(tempPath, path.join(simDir, `sip_${job.orderNumber}_${safeName}.pdf`));
+          const manifest = {
+            orderId: job.id, orderNumber: job.orderNumber, fileName: file.originalName,
+            pdfUrl: downloadUrl, pageCount: job.pageCount,
+            selectedPrinter: 'ScanItPrintIt Simulator',
+            copies: job.settings?.copies || 1, mode: job.settings?.mode || 'BW',
+            sides: job.settings?.sides || 'SINGLE', paperSize: 'A4',
+            timestamp: new Date().toISOString(), result: 'success',
+          };
+          fs.writeFileSync(path.join(simDir, `sip_${job.orderNumber}_${safeName}_manifest.json`), JSON.stringify(manifest, null, 2));
+        } else {
+          if (os.platform() !== 'win32') throw new Error('Physical printing requires Windows. Enable simulation on a test shop for development.');
+          await printDocument(tempPath, job.settings, store?.get('selectedPrinter'), (message, detail = {}) => {
+            stage = detail.stage || 'document-print';
+            diagnostic(detail.code || 'PRINT_PROGRESS', message, detail, detail.level || 'info');
+            if (['PRINT_SUBMIT', 'PRINT_ACCEPTED'].includes(detail.code)) {
+              store?.set('activePrintAttempt', { orderId: job.id, orderNumber: job.orderNumber, attemptId, stage, fileId: currentFileId });
+            }
+            emit('agent:event', { type: 'info', message });
+          });
+          emit('agent:event', { type: 'info', message: `Document submitted to Windows: ${file.originalName}` });
+        }
+      } finally {
+        // CAPT drivers may still have file handles after accepting the job.
+        const cleanup = setTimeout(() => fs.unlink(tempPath, () => {}), 60000);
+        cleanup.unref?.();
+      }
     }
 
-    if (simMode) {
-      try {
-        const simDir = path.join(os.homedir(), 'Desktop', 'scanitprintit-simulated-output');
-        if (!fs.existsSync(simDir)) fs.mkdirSync(simDir, { recursive: true });
-        const safeName = file.originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const finalPdfPath = path.join(simDir, `sip_${job.orderNumber}_${safeName}.pdf`);
-        fs.copyFileSync(tempPath, finalPdfPath);
-        const manifest = {
-          orderId: job.id, orderNumber: job.orderNumber, fileName: file.originalName,
-          pdfUrl: downloadUrl, pageCount: job.pageCount,
-          selectedPrinter: 'ScanItPrintIt Simulator',
-          copies: job.settings?.copies || 1,
-          mode: job.settings?.mode || 'BW',
-          sides: job.settings?.sides || 'SINGLE',
-          paperSize: 'A4',
-          timestamp: new Date().toISOString(), result: 'success',
-        };
-        fs.writeFileSync(path.join(simDir, `sip_${job.orderNumber}_manifest.json`), JSON.stringify(manifest, null, 2));
-        await new Promise(r => setTimeout(r, 2000));
-      } catch (err) {
-        allPrinted = false;
-      }
-    } else if (os.platform() === 'win32') {
-      try {
-        // ── Step 1: Validate downloaded file exists and is non-empty
-        const fileStats = fs.statSync(tempPath);
-        if (fileStats.size < 100) {
-          throw new Error(`Downloaded file too small (${fileStats.size} bytes) — likely corrupt`);
-        }
-        emit('agent:event', { type: 'info', message: `📄 File downloaded: ${(fileStats.size / 1024).toFixed(1)} KB → ${tempPath}` });
-
-        // ── Step 2: Validate the file is actually a PDF (check magic bytes)
-        const headerBuf = Buffer.alloc(5);
-        const fd = fs.openSync(tempPath, 'r');
-        fs.readSync(fd, headerBuf, 0, 5, 0);
-        fs.closeSync(fd);
-        const headerStr = headerBuf.toString('ascii', 0, 4);
-        if (headerStr !== '%PDF') {
-          // Log what we actually got so we can debug
-          const preview = fs.readFileSync(tempPath, 'utf8').substring(0, 200);
-          emit('agent:event', { type: 'error', message: `❌ NOT a PDF! Header: "${headerStr}" | Preview: ${preview}` });
-          throw new Error(`Downloaded file is not a valid PDF (got "${headerStr}" instead of "%PDF"). The download URL may have redirected to an HTML page.`);
-        }
-        emit('agent:event', { type: 'info', message: `✅ PDF validated (header: %PDF)` });
-
-        // ── Step 3: Resolve printer (auto-pick first available if none configured)
-        let selectedPrinter = store?.get('selectedPrinter') || null;
-        if (!selectedPrinter) {
-          try {
-            const availPrinters = await ptp.getPrinters();
-            emit('agent:event', { type: 'info', message: `🖨️ Available printers: ${availPrinters.map(p => p.name).join(', ')}` });
-            if (availPrinters.length > 0) {
-              selectedPrinter = availPrinters[0].name;
-              emit('agent:event', { type: 'info', message: `Auto-selected printer: ${selectedPrinter}` });
-            }
-          } catch (printerErr) {
-            emit('agent:event', { type: 'error', message: `Printer detection error: ${printerErr.message}` });
-          }
-        }
-        if (!selectedPrinter) throw new Error('No printer found. Configure one in Settings.');
-
-        emit('agent:event', { type: 'info', message: `🖨️ Sending to: "${selectedPrinter}" via Electron Native Print...` });
-        
-        const copies = parseInt(job.settings?.copies) || 1;
-        
-        // ── Step 4: Print using Electron Chromium Engine
-        await new Promise((resolvePrint, rejectPrint) => {
-          let printWin = new BrowserWindow({ 
-            show: false,
-            webPreferences: { plugins: true } // Required to load PDFs natively
-          });
-
-          // Safety timeout
-          const safetyTimer = setTimeout(() => {
-            if (printWin) {
-              printWin.close();
-              rejectPrint(new Error('Print job timed out. The printer might be offline or unresponsive.'));
-            }
-          }, 60000); // 60s timeout
-
-          printWin.on('closed', () => { printWin = null; });
-
-          printWin.loadURL(`file://${tempPath}`);
-          printWin.webContents.on('did-finish-load', () => {
-            // Wait 2 seconds for PDF viewer to initialize
-            setTimeout(() => {
-              let currentCopy = 1;
-              const doPrint = async () => {
-                emit('agent:event', { type: 'info', message: `Printing copy ${currentCopy}/${copies}...` });
-                try {
-                  await printWin.webContents.print({
-                    silent: true,
-                    deviceName: selectedPrinter,
-                    copies: 1 // Print one copy at a time for safety
-                  });
-                  emit('agent:event', { type: 'info', message: `Copy ${currentCopy} spooled successfully` });
-                  if (currentCopy < copies) {
-                    currentCopy++;
-                    setTimeout(doPrint, 3000); // Wait 3s between copies
-                  } else {
-                    clearTimeout(safetyTimer);
-                    printWin.close();
-                    resolvePrint();
-                  }
-                } catch (printErr) {
-                  clearTimeout(safetyTimer);
-                  printWin.close();
-                  rejectPrint(new Error(`Native print failed: ${printErr.message}`));
-                }
-              };
-              doPrint();
-            }, 2000);
-          });
-        });
-
-        // ── Step 5: Wait for CAPT/GDI printer to fully spool the job
-        //    Canon LBP2900 is a host-based printer — it needs the computer to
-        //    finish rendering before the data is sent to the hardware.
-        emit('agent:event', { type: 'info', message: `⏳ Waiting for printer spooler to finish...` });
-        await new Promise(r => setTimeout(r, 8000));
-        
-        emit('agent:event', { type: 'info', message: `✅ Print complete: ${file.originalName}` });
-      } catch (err) {
-        emit('agent:event', { type: 'error', message: `❌ Print error: ${err.message}` });
-        allPrinted = false;
-        await updateJobStatus(job.id, 'NEEDS_ATTENTION');
-      }
-    } else {
-      // macOS/Linux dev simulation
-      await new Promise(r => setTimeout(r, 1500));
-    }
-
-    // DELAY UNLINK by 60 seconds! 
-    // Basic GDI printers (like Canon LBP2900) take a long time to spool and will fail if the file is deleted too quickly.
-    setTimeout(() => {
-      fs.unlink(tempPath, () => {});
-    }, 60000);
-  }
-
-  if (allPrinted) {
     const finalStatus = simMode ? 'SIMULATED_PRINTED' : 'PRINTED';
-    // Cache printed job ID (keep last 50 for idempotency)
-    printedJobs.push(job.id);
-    if (printedJobs.length > 50) printedJobs.shift();
-    store?.set('printedJobs', printedJobs);
-    await updateJobStatus(job.id, finalStatus);
-    emit('agent:jobStatus', { orderId: job.id, status: finalStatus, orderNumber: job.orderNumber });
-  } else {
-    emit('agent:jobStatus', { orderId: job.id, status: 'NEEDS_ATTENTION', orderNumber: job.orderNumber });
+    const printedJobs = store?.get('printedJobs', []) || [];
+    store?.set('printedJobs', [...printedJobs, job.id].slice(-50));
+    stage = 'status-sync';
+    await finishJob(job, finalStatus);
+    store?.delete('activePrintAttempt');
+    diagnostic('ATTEMPT_COMPLETED', 'Print attempt completed', { status: finalStatus });
+  } catch (error) {
+    stage = error.printStage || stage;
+    diagnostic('ATTEMPT_FAILED', error.message, { errorCode: error.code, submissionUncertain: !!error.submissionUncertain, httpStatus: error.statusCode }, 'error');
+    emit('agent:event', { type: 'error', message: `Order ${job.orderNumber} failed at ${stage}: ${error.message}` });
+    // A transport failure can leave a successful claim in PRINTING. Report
+    // attention in that case too, but never overwrite another agent's 409 claim.
+    if (claimed || !error.statusCode || error.statusCode >= 500) {
+      await finishJob(job, 'NEEDS_ATTENTION');
+      store?.delete('activePrintAttempt');
+    }
+  } finally {
+    isPrinting = false;
   }
-
-  isPrinting = false;
 }
 
 // ─── Poll Loop ────────────────────────────────────────────────────────────────
 async function poll() {
-  if (isPolling) return;
+  if (isPolling || isPrinting || !running) return;
   isPolling = true;
 
   try {
     const token = store?.get('token');
     if (!token) return;
 
+    await syncPendingStatuses();
     const res  = await apiFetch('/agent/jobs');
     const data = res.json();
 
@@ -324,9 +285,10 @@ async function poll() {
       return;
     }
 
-    if (!data.success || !data.jobs?.length) return;
+    if (!running || !data.success || !data.jobs?.length) return;
 
     const job = data.jobs[0];
+    if (store?.get('pendingStatuses', {})?.[job.id]) return;
     const printedJobs = store?.get('printedJobs', []) || [];
 
     if (printedJobs.includes(job.id)) {
@@ -336,7 +298,8 @@ async function poll() {
     }
 
     emit('agent:newJob', job);
-    await processJob(job);
+    activeJob = processJob(job);
+    try { await activeJob; } finally { activeJob = null; }
 
   } catch (err) {
     emit('agent:connectivity', { online: false, apiReachable: false, error: err.message });
@@ -347,21 +310,42 @@ async function poll() {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 module.exports = {
-  start(_store, _emit) {
+  start(_store, _emit, options = {}) {
+    this.stop();
     store = _store;
     emit  = _emit;
-    pollTimer = setInterval(poll, POLL_MS);
+    diagnosticsOnly = options.diagnosticsOnly === true;
+    const interrupted = store?.get('activePrintAttempt');
+    if (interrupted && !isPrinting) {
+      recordDiagnostic({ level: 'error', stage: 'recovery', code: 'INTERRUPTED_ATTEMPT', orderId: interrupted.orderId, attemptId: interrupted.attemptId,
+        message: 'The agent closed during an active attempt. Check the Windows queue before retrying.', data: { lastStage: interrupted.stage } });
+      const pending = store.get('pendingStatuses', {}) || {};
+      // Preserve an already journaled success if the crash happened during final status sync.
+      if (!pending[interrupted.orderId]) pending[interrupted.orderId] = { status: 'NEEDS_ATTENTION', orderNumber: interrupted.orderNumber };
+      store.set('pendingStatuses', pending);
+      store.delete('activePrintAttempt');
+    }
+    running = !diagnosticsOnly;
+    if (running) pollTimer = setInterval(poll, POLL_MS);
     // Also check connectivity every 15s separately
-    setInterval(checkConnectivity, 15000);
+    connectivityTimer = setInterval(checkConnectivity, 15000);
     checkConnectivity();
   },
 
   stop() {
+    running = false;
     if (pollTimer) clearInterval(pollTimer);
+    if (connectivityTimer) clearInterval(connectivityTimer);
+    pollTimer = connectivityTimer = null;
   },
 
   isPrinting() {
     return isPrinting;
+  },
+  isDiagnosticsOnly() { return diagnosticsOnly; },
+
+  waitForIdle() {
+    return activeJob || Promise.resolve();
   },
 
   getVersion() {
@@ -373,8 +357,10 @@ module.exports = {
       const res  = await apiFetch('/agent/pair', 'POST', { code: code.trim() });
       const data = res.json();
       if (data.success) {
+        getDiagnostics()?.reset();
         store?.set('token', data.token);
         store?.set('printedJobs', []);
+        store?.set('pendingStatuses', {});
         return { success: true };
       }
       return { success: false, error: data.error };
@@ -407,5 +393,64 @@ module.exports = {
   async getSettings() {
     const res = await apiFetch('/owner/settings', 'GET');
     return res.json();
+  },
+
+  async sendDiagnostics(events) {
+    const response = await apiFetch('/agent/diagnostics', 'POST', { events });
+    const data = response.json();
+    if (response.status !== 200 || !data.success) throw new Error(data.error || `Diagnostics sync failed (HTTP ${response.status}).`);
+    return data;
+  },
+
+  async retryJob(orderId) {
+    if (isPrinting) return { success: false, error: 'Wait for the current print job to finish.' };
+    await syncPendingStatuses();
+    if (store?.get('pendingStatuses', {})?.[orderId]) return { success: false, error: 'This job still has a status update waiting to sync. Try again when connected.' };
+    const response = await apiFetch(`/agent/jobs/${encodeURIComponent(orderId)}/actions`, 'POST', { action: 'retry' });
+    const data = response.json();
+    if (response.status !== 200 || !data.success) return { success: false, error: data.error || 'Could not requeue the order.' };
+    store?.set('printedJobs', (store.get('printedJobs', []) || []).filter(id => id !== orderId));
+    recordDiagnostic({ stage: 'recovery', code: 'RETRY_QUEUED', orderId, message: 'The operator requeued the order on the server' });
+    return { success: true };
+  },
+
+  async cancelJob(orderId) {
+    if (isPrinting) return { success: false, error: 'Wait for the current print job to finish.' };
+    await syncPendingStatuses();
+    if (store?.get('pendingStatuses', {})?.[orderId]) return { success: false, error: 'This job still has a status update waiting to sync. Try again when connected.' };
+    const response = await apiFetch(`/agent/jobs/${encodeURIComponent(orderId)}/actions`, 'POST', { action: 'cancel' });
+    const data = response.json();
+    return response.status === 200 && data.success ? { success: true } : { success: false, error: data.error || 'Could not cancel the order.' };
+  },
+
+  async printTestPage() {
+    if (isPrinting || isPolling) return { success: false, error: 'The agent is busy. Wait for the current job check or print to finish.' };
+    if (os.platform() !== 'win32') return { success: false, error: 'The printer test requires Windows.' };
+    isPrinting = true;
+    const attemptId = crypto.randomUUID();
+    const temp = path.join(os.tmpdir(), `sip_printer_test_${crypto.randomUUID()}.pdf`);
+    const diagnostic = (message, detail = {}) => recordDiagnostic({
+      attemptId, stage: detail.stage || 'printer-test', code: detail.code || 'TEST_PAGE_PROGRESS',
+      level: detail.level || 'info', message, data: { ...detail, printerTest: true },
+    });
+    const task = (async () => {
+      try {
+        diagnostic('Operator requested a one-page printer test', { code: 'TEST_PAGE_STARTED' });
+        const { fixturePdf } = require('./renderer-self-test');
+        fs.writeFileSync(temp, fixturePdf());
+        await printDocument(temp, { copies: 1, mode: 'BW', sides: 'SINGLE' }, store?.get('selectedPrinter'), diagnostic);
+        diagnostic('Windows accepted the test page. Check the printer for physical output.', { code: 'TEST_PAGE_ACCEPTED' });
+        return { success: true };
+      } catch (error) {
+        diagnostic(error.message, { level: 'error', code: 'TEST_PAGE_FAILED', stage: error.printStage || 'printer-test' });
+        return { success: false, error: error.message };
+      } finally {
+        isPrinting = false;
+        fs.unlink(temp, () => {});
+        void getDiagnostics()?.flush(true);
+      }
+    })();
+    activeJob = task;
+    try { return await task; } finally { if (activeJob === task) activeJob = null; }
   },
 };

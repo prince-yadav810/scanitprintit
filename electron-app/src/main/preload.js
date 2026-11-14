@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('api', {
   getRemoteSettings: () => ipcRenderer.invoke('settings:getRemote'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
   getPrinters: () => ipcRenderer.invoke('settings:getPrinters'),
+  getPrinterHealth: () => ipcRenderer.invoke('settings:printerHealth'),
   getQrCode: () => ipcRenderer.invoke('settings:getQrCode'),
   downloadQrCode: () => ipcRenderer.invoke('settings:downloadQrCode'),
   exportHistoryCsv: (filters) => ipcRenderer.invoke('history:exportCsv', filters),
@@ -30,6 +31,8 @@ contextBridge.exposeInMainWorld('api', {
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
   getAppVersion: () => ipcRenderer.invoke('updater:getVersion'),
+  getDiagnosticStatus: () => ipcRenderer.invoke('diagnostics:status'),
+  printTestPage: () => ipcRenderer.invoke('diagnostics:printTestPage'),
   onUpdaterStatus: (callback) => {
     const handler = (_, data) => callback(data);
     ipcRenderer.on('updater:status', handler);
