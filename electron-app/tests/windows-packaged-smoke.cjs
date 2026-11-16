@@ -36,6 +36,127 @@ async function eventually(check, timeoutMs = 60000) {
   throw new Error('Timed out waiting for packaged application startup.');
 }
 
+async function orderFlow(archive, fixturePdf) {
+  const printerName = 'ScanItPrintIt CI Printer';
+  const orderId = 'ci-synthetic-order';
+  const token = 'ci-local-pairing';
+  const settings = { copies: 2, mode: 'COLOR', sides: 'DOUBLE' };
+  const pdf = fixturePdf();
+  const statuses = [];
+  let polls = 0;
+  let downloads = 0;
+  let enumerations = 0;
+  let submissions = 0;
+  let serverError;
+  const data = { token, selectedPrinter: printerName };
+  const store = {
+    get: (key, fallback) => data[key] ?? fallback,
+    set: (key, value) => { data[key] = value; },
+    delete: key => { delete data[key]; },
+  };
+  server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', chunk => { body += chunk; });
+    request.on('end', () => {
+      try {
+        if (request.url === '/fixture.pdf') {
+          downloads++;
+          response.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': pdf.length });
+          response.end(pdf);
+          return;
+        }
+        assert.equal(request.headers.authorization, `Bearer ${token}`);
+        response.setHeader('Content-Type', 'application/json');
+        if (request.url === '/api/agent/ping') {
+          response.end(JSON.stringify({ ok: true }));
+        } else if (request.method === 'GET' && request.url === '/api/agent/jobs') {
+          polls++;
+          // Deliberately return the same order again after completion. The
+          // durable printed-job cache must sync its status without reprinting.
+          response.end(JSON.stringify({ success: true, jobs: [{
+            id: orderId, orderNumber: 'CI-ONLY', settings, simulationEnabled: false,
+            files: [{ id: 'ci-file', originalName: 'fixture.pdf', status: 'UPLOADED',
+              cloudinaryUrl: `http://127.0.0.1:${server.address().port}/fixture.pdf` }],
+          }] }));
+        } else if (request.method === 'POST' && request.url === `/api/agent/jobs/${orderId}/status`) {
+          statuses.push(JSON.parse(body).status);
+          response.end(JSON.stringify({ success: true }));
+        } else {
+          throw new Error(`Unexpected synthetic API request: ${request.method} ${request.url}`);
+        }
+      } catch (error) {
+        serverError = error;
+        response.statusCode = 500;
+        response.end(JSON.stringify({ error: error.message }));
+      }
+    });
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  process.env.SCANITPRINTIT_API = `http://127.0.0.1:${server.address().port}/api`;
+  const windowsModule = require(path.join(archive, 'src/main/windows-printer.js'));
+  windowsModule.getPrinterSnapshot = async () => ({ available: false, reason: 'CI has no physical printer' });
+  delete require.cache[require.resolve(path.join(archive, 'src/main/native-print.js'))];
+  app.on('web-contents-created', (_, contents) => {
+    const enumerate = contents.getPrintersAsync.bind(contents);
+    contents.getPrintersAsync = async () => {
+      const printers = await enumerate();
+      enumerations++;
+      report.events.push({ event: 'real-windows-printer-enumeration', names: printers.map(printer => printer.name) });
+      return [...printers, { name: printerName, isDefault: false }];
+    };
+    contents.print = (options, callback) => {
+      assert.equal(options.deviceName, printerName);
+      assert.equal(options.copies, settings.copies);
+      assert.equal(options.color, true);
+      assert.equal(options.duplexMode, 'longEdge');
+      submissions++;
+      report.printSettings = options;
+      contents.printToPDF({ pageSize: 'A4', printBackground: true }).then(bytes => {
+        assert(bytes.length > 500);
+        fs.writeFileSync(path.join(directory, 'rendered-order.pdf'), bytes);
+        callback(true);
+      }).catch(error => callback(false, error.message));
+    };
+  });
+  // API_BASE is captured at import; set the synthetic local URL first. The
+  // packaged agent, downloads, PDF rendering, status sync, and cache stay real.
+  const agent = require(path.join(archive, 'src/main/agent.js'));
+  const { createDiagnostics } = require(path.join(archive, 'src/main/diagnostics.js'));
+  const diagnostics = createDiagnostics({ store, directory: path.join(directory, 'logs'), send: async () => {
+    throw new Error('The order-flow test must never upload diagnostics');
+  } });
+  try {
+    agent.start(store, (event, detail) => report.events.push({ event, detail }));
+    // Startup self-test has its own mode; this mode isolates the customer-order
+    // pipeline, which still performs real rendering before its print callback.
+    agent.setRendererReadiness({ status: 'ready' });
+    await eventually(() => {
+      if (serverError) throw serverError;
+      if (statuses.includes('NEEDS_ATTENTION')) {
+        const failure = diagnostics.status().history.find(event => event.code === 'ATTEMPT_FAILED');
+        throw new Error(`Synthetic order failed: ${failure?.message || 'NEEDS_ATTENTION'}`);
+      }
+      return statuses.filter(status => status === 'PRINTED').length >= 2;
+    });
+    agent.stop();
+    await agent.waitForIdle();
+    assert.equal(statuses.filter(status => status === 'PRINTING').length, 1);
+    assert.equal(downloads, 1);
+    assert.equal(submissions, 1);
+    assert.equal(enumerations, 1);
+    assert(polls >= 2);
+    assert(data.printedJobs.includes(orderId));
+    assert.equal(data.activePrintAttempt, undefined);
+    assert.equal(Object.keys(data.pendingStatuses).length, 0);
+    assert(diagnostics.status().history.some(event => event.code === 'RENDER_COMPLETE' && event.data.pages === 1));
+  } finally {
+    agent.stop();
+    diagnostics.stop();
+    report.orderFlow = { polls, downloads, enumerations, submissions, statuses,
+      diagnostics: diagnostics.status().history };
+  }
+}
+
 async function main() {
   const archive = path.resolve(process.argv[2]);
   const mode = process.argv[3] || 'render';
@@ -179,6 +300,8 @@ async function main() {
       (message, detail) => report.events.push({ message, ...detail }));
     assert.equal(enumerations, 1);
     assert.equal(submissions, 1);
+  } else if (mode === 'order-flow') {
+    await orderFlow(archive, fixturePdf);
   } else throw new Error(`Unknown mode: ${mode}`);
   report.success = true;
   console.log(`PASS: Windows ${mode} against packaged version ${pkg.version}; physical print submission disabled.`);
