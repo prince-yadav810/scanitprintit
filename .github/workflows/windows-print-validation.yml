@@ -62,14 +62,14 @@ jobs:
       - name: Observe baseline on actual Windows
         continue-on-error: true
         run: |
-          foreach ($mode in @('load-probes', 'render', 'discovery-first', 'startup')) {
+          foreach ($mode in @('load-probes', 'render', 'discovery-first', 'windows-discovery', 'startup')) {
             & .\node_modules\electron\dist\electron.exe tests/windows-packaged-smoke.cjs "$env:BASELINE_ARCHIVE" $mode windows-print-results/baseline | Out-Default
             Write-Host "Baseline $mode exit code: $LASTEXITCODE"
           }
           exit 0
       - name: Validate candidate on actual Windows
         run: |
-          foreach ($mode in @('load-probes', 'render', 'discovery-first', 'startup', 'order-flow')) {
+          foreach ($mode in @('load-probes', 'render', 'discovery-first', 'windows-discovery', 'startup', 'order-flow')) {
             & .\node_modules\electron\dist\electron.exe tests/windows-packaged-smoke.cjs "$env:CANDIDATE_ARCHIVE" $mode windows-print-results/candidate | Out-Default
             if ($LASTEXITCODE -ne 0) { throw "Candidate $mode failed with $LASTEXITCODE" }
           }

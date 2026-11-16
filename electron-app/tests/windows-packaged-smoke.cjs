@@ -243,6 +243,7 @@ async function main() {
     for (const probe of [
       { name: 'loadFile-immediate', discover: false, route: 'file' },
       { name: 'loadFile-after-discovery', discover: true, route: 'file' },
+      { name: 'loadFile-after-discovery-and-delay', discover: true, delay: 3500, route: 'file' },
       { name: 'pathToFileURL-after-discovery', discover: true, route: 'url' },
       { name: 'data-page-after-discovery', discover: true, route: 'data' },
     ]) {
@@ -256,6 +257,7 @@ async function main() {
       const result = { ...probe };
       try {
         if (probe.discover) result.printerCount = (await window.webContents.getPrintersAsync()).length;
+        if (probe.delay) await new Promise(resolve => setTimeout(resolve, probe.delay));
         if (probe.route === 'file') await window.loadFile(page);
         else if (probe.route === 'url') await window.loadURL(pathToFileURL(page).href);
         else await window.loadURL('data:text/html;charset=utf-8,<h1>Windows loading probe</h1>');
@@ -268,6 +270,25 @@ async function main() {
     }
   } else if (mode === 'render') {
     await printDocument(fixture, {}, null, (message, detail) => report.events.push({ message, ...detail }), { validateOnly: true });
+  } else if (mode === 'windows-discovery') {
+    // The reported laptop failure follows the real PowerShell status query,
+    // which leaves the hidden window idle for seconds before first navigation.
+    // Keep that exact timing and real Windows status query, stubbing only paper.
+    let submissions = 0;
+    app.on('web-contents-created', (_, contents) => {
+      contents.print = (settings, callback) => {
+        submissions++;
+        report.printSettings = settings;
+        contents.printToPDF({ pageSize: 'A4', printBackground: true }).then(bytes => {
+          fs.writeFileSync(path.join(directory, 'rendered.pdf'), bytes);
+          callback(bytes.length > 500);
+        }, error => callback(false, error.message));
+      };
+    });
+    await printDocument(fixture, { copies: 1, mode: 'BW', sides: 'SINGLE' }, 'Microsoft Print to PDF',
+      (message, detail) => report.events.push({ message, ...detail }));
+    assert.equal(submissions, 1);
+    assert(report.events.some(event => event.code === 'SPOOLER_BEFORE' && event.available));
   } else if (mode === 'discovery-first') {
     // Exact production ordering: getPrintersAsync before loading print.html.
     // The underlying Chromium printer enumeration still executes on Windows.
