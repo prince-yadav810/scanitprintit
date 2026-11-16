@@ -53,6 +53,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Baseline archive extraction failed' }
           if (!(Test-Path (Join-Path $target 'resources/app.asar'))) { throw 'Baseline archive missing after extraction' }
           "BASELINE_ARCHIVE=$(Join-Path $target 'resources/app.asar')" >> $env:GITHUB_ENV
+          "BASELINE_EXECUTABLE=$(Join-Path $target 'ScanItPrintIt Agent.exe')" >> $env:GITHUB_ENV
+      - name: Observe released executable startup
+        continue-on-error: true
+        run: node tests/windows-executable-smoke.cjs "$env:BASELINE_EXECUTABLE" windows-print-results/baseline-executable
+      - name: Validate candidate executable startup
+        run: node tests/windows-executable-smoke.cjs 'dist/windows-ci/win-unpacked/ScanItPrintIt Agent.exe' windows-print-results/candidate-executable
       - name: Observe baseline on actual Windows
         continue-on-error: true
         run: |
