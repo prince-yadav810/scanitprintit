@@ -1,12 +1,14 @@
 // Windows-only integration test of the actual packaged modules and renderer.
 // No OS print submission is allowed. getPrintersAsync is real; only its returned
 // test device, its hardware snapshot, and the final print call are substituted.
-const { app, BrowserWindow, session } = require('electron');
+const { app, BrowserWindow, session, ipcMain } = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const http = require('node:http');
+const { pathToFileURL } = require('node:url');
+const crypto = require('node:crypto');
 
 let report;
 let directory;
@@ -112,7 +114,38 @@ async function main() {
   const fixture = path.join(directory, 'input.pdf');
   fs.writeFileSync(fixture, fixturePdf());
   const { printDocument } = require(path.join(archive, 'src/main/native-print.js'));
-  if (mode === 'render') {
+  if (mode === 'load-probes') {
+    // Diagnostic matrix only. Individual failures are retained in report.json
+    // rather than hiding the other routes behind the first failed load.
+    const page = path.join(archive, 'src/renderer/print.html');
+    report.probes = [];
+    for (const probe of [
+      { name: 'loadFile-immediate', discover: false, route: 'file' },
+      { name: 'loadFile-after-discovery', discover: true, route: 'file' },
+      { name: 'pathToFileURL-after-discovery', discover: true, route: 'url' },
+      { name: 'data-page-after-discovery', discover: true, route: 'data' },
+    ]) {
+      const channel = `print:document:${crypto.randomUUID()}`;
+      const window = new BrowserWindow({ show: false, webPreferences: {
+        preload: path.join(archive, 'src/main/print-preload.js'),
+        additionalArguments: [`--print-channel=${channel}`], contextIsolation: true,
+        nodeIntegration: false, sandbox: true, backgroundThrottling: false,
+      } });
+      ipcMain.handle(channel, () => fixturePdf());
+      const result = { ...probe };
+      try {
+        if (probe.discover) result.printerCount = (await window.webContents.getPrintersAsync()).length;
+        if (probe.route === 'file') await window.loadFile(page);
+        else if (probe.route === 'url') await window.loadURL(pathToFileURL(page).href);
+        else await window.loadURL('data:text/html;charset=utf-8,<h1>Windows loading probe</h1>');
+        result.loaded = true;
+        if (probe.route !== 'data') result.render = await window.webContents.executeJavaScript('window.printReady');
+      } catch (error) { result.loaded = false; result.error = error.message; }
+      finally { ipcMain.removeHandler(channel); window.destroy(); }
+      report.probes.push(result);
+      console.log('LOAD PROBE:', JSON.stringify(result));
+    }
+  } else if (mode === 'render') {
     await printDocument(fixture, {}, null, (message, detail) => report.events.push({ message, ...detail }), { validateOnly: true });
   } else if (mode === 'discovery-first') {
     // Exact production ordering: getPrintersAsync before loading print.html.
