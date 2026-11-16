@@ -41,10 +41,24 @@ async function printDocument(filePath, settings = {}, deviceName, log = () => {}
   // Also handle a close between stages, before the next Promise.race attaches.
   abort.catch(() => {});
   const onClosed = () => rejectAbort(new Error('The print window closed before completion.'));
-  const onCrash = (_, details) => rejectAbort(new Error(`Print renderer stopped: ${details.reason}`));
+  const onCrash = (_, details) => {
+    // Electron can reject loadFile with generic ERR_FAILED before the abort
+    // promise wins. Keep the process failure as a separate diagnostic event.
+    report('Print renderer process stopped', {
+      level: 'error', code: 'PRINT_RENDERER_GONE', reason: details.reason, exitCode: details.exitCode,
+    });
+    rejectAbort(new Error(`Print renderer stopped: ${details.reason}`));
+  };
   win.once('closed', onClosed);
   win.webContents.once('render-process-gone', onCrash);
   const onPreloadError = (_, __, error) => report('Print preload failed', { level: 'error', code: 'PRELOAD_FAILED', error: error.message });
+  const onLoadFailed = (_, errorCode, description, _url, mainFrame) => {
+    // URLs can contain local user names or document identifiers; the Chromium
+    // error and frame type are sufficient to diagnose this packaged page.
+    report('Print page navigation failed', {
+      level: 'error', code: 'PRINT_PAGE_LOAD_FAILED', errorCode, description, mainFrame,
+    });
+  };
   const onConsole = (_, detail, legacyMessage) => {
     const level = typeof detail === 'object' ? detail.level : detail;
     if (level === 'error' || level === 'warning' || level > 1) {
@@ -52,6 +66,7 @@ async function printDocument(filePath, settings = {}, deviceName, log = () => {}
     }
   };
   win.webContents.on('preload-error', onPreloadError);
+  win.webContents.on('did-fail-load', onLoadFailed);
   win.webContents.on('console-message', onConsole);
 
   ipcMain.handle(channel, async (event) => {
@@ -132,6 +147,7 @@ async function printDocument(filePath, settings = {}, deviceName, log = () => {}
     win.removeListener('closed', onClosed);
     win.webContents.removeListener('render-process-gone', onCrash);
     win.webContents.removeListener('preload-error', onPreloadError);
+    win.webContents.removeListener('did-fail-load', onLoadFailed);
     win.webContents.removeListener('console-message', onConsole);
     if (!win.isDestroyed()) win.destroy();
   }

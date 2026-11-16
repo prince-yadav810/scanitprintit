@@ -30,7 +30,7 @@ function setup(options = {}) {
       removeHandler: channel => handlers.delete(channel),
     } },
     fs: { promises: { readFile: async () => Buffer.from('%PDF-1.4') } },
-    './windows-printer': { getPrinterSnapshot: async () => options.snapshot ?? { available: false } },
+    './windows-printer': { getPrinterSnapshot: async () => options.snapshotQuery?.() ?? options.snapshot ?? { available: false } },
   }, timers);
   return { ...service, timers, handlers, get win() { return win; } };
 }
@@ -114,6 +114,54 @@ test('renderer crash releases the pending print', async () => {
   s.win.webContents.emit('render-process-gone', {}, { reason: 'crashed' });
   await rejected;
   assert.equal(s.win.destroyed, true);
+});
+
+test('renderer crash details survive a generic navigation rejection winning the race', async () => {
+  let rejectLoad;
+  let finishFailureSnapshot;
+  let snapshots = 0;
+  const s = setup({
+    load: () => new Promise((_, reject) => { rejectLoad = reject; }),
+    snapshotQuery: () => ++snapshots === 1 ? { available: false }
+      : new Promise(resolve => { finishFailureSnapshot = resolve; }),
+  });
+  const events = [];
+  const rejected = assert.rejects(s.printDocument('/tmp/document.pdf', {}, null,
+    (message, detail) => events.push({ message, ...detail })), /ERR_FAILED/);
+  await settle();
+  rejectLoad(new Error('ERR_FAILED (-2)'));
+  await settle();
+  assert(events.some(event => event.code === 'PRINT_FAILED' && /ERR_FAILED/.test(event.message)));
+  s.win.webContents.emit('render-process-gone', {}, { reason: 'crashed', exitCode: -1073741819 });
+  finishFailureSnapshot({ available: false });
+  await rejected;
+  const crash = events.find(event => event.code === 'PRINT_RENDERER_GONE');
+  assert.equal(crash.reason, 'crashed');
+  assert.equal(crash.exitCode, -1073741819);
+  assert.equal(crash.stage, 'document-load');
+  assert.equal(s.win.callback, undefined);
+  assert.equal(s.win.webContents.listenerCount('render-process-gone'), 0);
+});
+
+test('navigation diagnostics retain the failure code and frame without exposing the URL', async () => {
+  let rejectLoad;
+  const s = setup({ load: () => new Promise((_, reject) => { rejectLoad = reject; }) });
+  const events = [];
+  const rejected = assert.rejects(s.printDocument('/tmp/document.pdf', {}, null,
+    (message, detail) => events.push({ message, ...detail })), /ERR_FILE_NOT_FOUND/);
+  await settle();
+  s.win.webContents.emit('did-fail-load', {}, -6, 'ERR_FILE_NOT_FOUND',
+    'file:///C:/Users/private-user/print.html?customer=private-customer', true);
+  rejectLoad(new Error('ERR_FILE_NOT_FOUND'));
+  await rejected;
+  const failure = events.find(event => event.code === 'PRINT_PAGE_LOAD_FAILED');
+  assert.equal(failure.errorCode, -6);
+  assert.equal(failure.description, 'ERR_FILE_NOT_FOUND');
+  assert.equal(failure.mainFrame, true);
+  assert.equal(failure.stage, 'document-load');
+  assert.doesNotMatch(JSON.stringify(events), /private-user|private-customer/);
+  assert.equal(s.win.callback, undefined);
+  assert.equal(s.win.webContents.listenerCount('did-fail-load'), 0);
 });
 
 test('only the dedicated print window may read the current document', async () => {
