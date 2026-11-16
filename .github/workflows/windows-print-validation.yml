@@ -44,26 +44,27 @@ jobs:
           "CANDIDATE_ARCHIVE=$(Join-Path $target 'app.asar')" >> $env:GITHUB_ENV
       - name: Download known failing 1.1.9 archive for comparison
         run: |
-          $target = Join-Path $env:RUNNER_TEMP 'ScanItPrintIt space # unicode परीक्षण\baseline'
+          $target = Join-Path $env:RUNNER_TEMP 'ScanItPrintIt baseline'
           New-Item -ItemType Directory -Force $target | Out-Null
           $exe = Join-Path $target 'Support-1.1.9.exe'
           Invoke-WebRequest 'https://github.com/prince-yadav810/scanitprintit/releases/download/support-1.1.9-20261113/ScanItPrintIt-Support-1.1.9.exe' -OutFile $exe
           if ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLower() -ne '5943e88a5594cebf482dcc81f887188431f24a9621fc61d4ff70a794dc6f6ab4') { throw 'Baseline executable checksum mismatch' }
           & 7z x $exe 'resources/app.asar' "-o$target" -y
           if ($LASTEXITCODE -ne 0) { throw 'Baseline archive extraction failed' }
+          if (!(Test-Path (Join-Path $target 'resources/app.asar'))) { throw 'Baseline archive missing after extraction' }
           "BASELINE_ARCHIVE=$(Join-Path $target 'resources/app.asar')" >> $env:GITHUB_ENV
       - name: Observe baseline on actual Windows
         continue-on-error: true
         run: |
           foreach ($mode in @('load-probes', 'render', 'discovery-first', 'startup')) {
-            & .\node_modules\electron\dist\electron.exe tests/windows-packaged-smoke.cjs "$env:BASELINE_ARCHIVE" $mode windows-print-results/baseline
+            & .\node_modules\electron\dist\electron.exe tests/windows-packaged-smoke.cjs "$env:BASELINE_ARCHIVE" $mode windows-print-results/baseline | Out-Default
             Write-Host "Baseline $mode exit code: $LASTEXITCODE"
           }
           exit 0
       - name: Validate candidate on actual Windows
         run: |
           foreach ($mode in @('load-probes', 'render', 'discovery-first', 'startup')) {
-            & .\node_modules\electron\dist\electron.exe tests/windows-packaged-smoke.cjs "$env:CANDIDATE_ARCHIVE" $mode windows-print-results/candidate
+            & .\node_modules\electron\dist\electron.exe tests/windows-packaged-smoke.cjs "$env:CANDIDATE_ARCHIVE" $mode windows-print-results/candidate | Out-Default
             if ($LASTEXITCODE -ne 0) { throw "Candidate $mode failed with $LASTEXITCODE" }
           }
       - name: Keep test evidence
