@@ -20,7 +20,7 @@ function setup(options = {}) {
       });
       win = Object.assign(this, {});
     }
-    loadFile(file) { this.loadedFile = file; return options.load?.() ?? Promise.resolve(); }
+    loadURL(url) { this.loadedURL = url; return options.load?.() ?? Promise.resolve(); }
     isDestroyed() { return this.destroyed; }
     destroy() { this.destroyed = true; this.emit('closed'); }
   }
@@ -31,6 +31,10 @@ function setup(options = {}) {
     } },
     fs: { promises: { readFile: async () => Buffer.from('%PDF-1.4') } },
     './windows-printer': { getPrinterSnapshot: async () => options.snapshotQuery?.() ?? options.snapshot ?? { available: false } },
+    './print-assets': {
+      ensurePrintAssetHandler: async () => {},
+      PRINT_PAGE_URL: 'scanitprintit-print://bundle/src/renderer/print.html',
+    },
   }, timers);
   return { ...service, timers, handlers, get win() { return win; } };
 }
@@ -46,7 +50,7 @@ test('waits for the callback and driver grace period, retaining pages and print 
   assert.equal(s.win.settings.deviceName, 'Canon LBP2900');
   assert.equal(s.win.settings.color, true);
   assert.equal(s.win.settings.duplexMode, 'longEdge');
-  assert.match(s.win.loadedFile, /print\.html$/);
+  assert.equal(s.win.loadedURL, 'scanitprintit-print://bundle/src/renderer/print.html');
   s.win.callback(true);
   await settle();
   assert.equal(done, false);

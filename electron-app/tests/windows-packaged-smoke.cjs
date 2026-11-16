@@ -164,6 +164,9 @@ async function main() {
   directory = path.join(outputRoot, mode);
   fs.mkdirSync(directory, { recursive: true });
   const pkg = require(path.join(archive, 'package.json'));
+  const printAssetsPath = path.join(archive, 'src/main/print-assets.js');
+  const printAssets = fs.existsSync(printAssetsPath) ? require(printAssetsPath) : null;
+  printAssets?.registerPrintAssetScheme();
   report = { platform: process.platform, runtime: process.versions, archive, version: pkg.version, mode, events: [] };
   timer = setTimeout(() => finish(new Error('Windows packaged smoke test exceeded 120 seconds.')), 120000);
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'sip-ci-profile-'));
@@ -239,6 +242,7 @@ async function main() {
     // Diagnostic matrix only. Individual failures are retained in report.json
     // rather than hiding the other routes behind the first failed load.
     const page = path.join(archive, 'src/renderer/print.html');
+    if (printAssets) await printAssets.ensurePrintAssetHandler();
     report.probes = [];
     for (const probe of [
       { name: 'loadFile-immediate', discover: false, route: 'file' },
@@ -246,6 +250,7 @@ async function main() {
       { name: 'loadFile-after-discovery-and-delay', discover: true, delay: 3500, route: 'file' },
       { name: 'pathToFileURL-after-discovery', discover: true, route: 'url' },
       { name: 'data-page-after-discovery', discover: true, route: 'data' },
+      ...(printAssets ? [{ name: 'bundled-print-origin', discover: true, delay: 3500, route: 'app' }] : []),
     ]) {
       const channel = `print:document:${crypto.randomUUID()}`;
       const window = new BrowserWindow({ show: false, webPreferences: {
@@ -260,6 +265,7 @@ async function main() {
         if (probe.delay) await new Promise(resolve => setTimeout(resolve, probe.delay));
         if (probe.route === 'file') await window.loadFile(page);
         else if (probe.route === 'url') await window.loadURL(pathToFileURL(page).href);
+        else if (probe.route === 'app') await window.loadURL(printAssets.PRINT_PAGE_URL);
         else await window.loadURL('data:text/html;charset=utf-8,<h1>Windows loading probe</h1>');
         result.loaded = true;
         if (probe.route !== 'data') result.render = await window.webContents.executeJavaScript('window.printReady');

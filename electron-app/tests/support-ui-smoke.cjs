@@ -27,6 +27,8 @@ app.whenReady().then(async () => {
       'settings:getQrCode': () => ({ success: false }),
       'diagnostics:status': () => ({ pending: 0, history: [] }),
       'diagnostics:printTestPage': () => { testPages++; return { success: true }; },
+      'engine:status': () => ({ status: 'ready', error: null, diagnosticsOnly: true }),
+      'engine:retry': () => ({ success: true }),
     };
     Object.entries(handlers).forEach(([channel, handler]) => ipcMain.handle(channel, handler));
     const win = new BrowserWindow({ width: 1200, height: 800, show: false, webPreferences: {

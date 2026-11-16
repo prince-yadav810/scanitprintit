@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 // The real app keeps a dashboard open between print windows.
 app.on('window-all-closed', () => {});
 const archive = path.resolve(process.argv.at(-1));
+require(path.join(archive, 'src/main/print-assets.js')).registerPrintAssetScheme();
 const timeout = setTimeout(() => { console.error('Packaged renderer timed out'); app.exit(1); }, 60000);
 app.whenReady().then(async () => {
   try {
@@ -32,6 +33,7 @@ app.whenReady().then(async () => {
       // Only the agent's Windows guard is simulated. The actual driver is never called.
       os.platform = () => 'win32';
       const agent = require(path.join(archive, 'src/main/agent.js'));
+      agent.setRendererReadiness({ status: 'ready' });
       const testPage = await agent.printTestPage();
       assert.equal(testPage.success, true, testPage.error);
       assert.equal(submissions, 1);

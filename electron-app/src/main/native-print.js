@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { BrowserWindow, ipcMain } = require('electron');
 const { getPrinterSnapshot } = require('./windows-printer');
 const { describePrinter } = require('./printer-health');
+const { ensurePrintAssetHandler, PRINT_PAGE_URL } = require('./print-assets');
 
 function bounded(operation, timeoutMs, message, abort) {
   let timer;
@@ -18,6 +19,7 @@ function bounded(operation, timeoutMs, message, abort) {
 async function printDocument(filePath, settings = {}, deviceName, log = () => {}, options = {}) {
   const copies = Number(settings.copies ?? 1);
   if (!Number.isInteger(copies) || copies < 1) throw new Error('Invalid number of copies.');
+  await ensurePrintAssetHandler();
 
   const channel = `print:document:${crypto.randomUUID()}`;
   const win = new BrowserWindow({
@@ -42,7 +44,7 @@ async function printDocument(filePath, settings = {}, deviceName, log = () => {}
   abort.catch(() => {});
   const onClosed = () => rejectAbort(new Error('The print window closed before completion.'));
   const onCrash = (_, details) => {
-    // Electron can reject loadFile with generic ERR_FAILED before the abort
+    // Electron can reject navigation with generic ERR_FAILED before the abort
     // promise wins. Keep the process failure as a separate diagnostic event.
     report('Print renderer process stopped', {
       level: 'error', code: 'PRINT_RENDERER_GONE', reason: details.reason, exitCode: details.exitCode,
@@ -59,10 +61,11 @@ async function printDocument(filePath, settings = {}, deviceName, log = () => {}
       level: 'error', code: 'PRINT_PAGE_LOAD_FAILED', errorCode, description, mainFrame,
     });
   };
-  const onConsole = (_, detail, legacyMessage) => {
-    const level = typeof detail === 'object' ? detail.level : detail;
+  const onConsole = (event, detail, legacyMessage) => {
+    const message = event?.message ?? (typeof detail === 'object' ? detail.message : legacyMessage);
+    const level = event?.level ?? (typeof detail === 'object' ? detail.level : detail);
     if (level === 'error' || level === 'warning' || level > 1) {
-      report('Print renderer diagnostic', { level: level === 'error' || level > 2 ? 'error' : 'warn', code: 'RENDERER_CONSOLE', error: typeof detail === 'object' ? detail.message : legacyMessage });
+      report('Print renderer diagnostic', { level: level === 'error' || level > 2 ? 'error' : 'warn', code: 'RENDERER_CONSOLE', error: message });
     }
   };
   win.webContents.on('preload-error', onPreloadError);
@@ -93,7 +96,7 @@ async function printDocument(filePath, settings = {}, deviceName, log = () => {}
     }
 
     stage = 'document-load';
-    await bounded(win.loadFile(path.join(__dirname, '../renderer/print.html')), 30000, 'Print page failed to load.', abort);
+    await bounded(win.loadURL(PRINT_PAGE_URL), 30000, 'Print page failed to load.', abort);
     stage = 'document-render';
     const result = await bounded(win.webContents.executeJavaScript(`(async () => {
       if (typeof window.printDocument?.read !== 'function') throw new Error('Print preload bridge is unavailable.');

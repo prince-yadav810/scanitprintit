@@ -8,6 +8,8 @@ const { createDiagnostics, recordDiagnostic } = require('./diagnostics');
 const { verifyRenderer } = require('./renderer-self-test');
 const { getAgentProcessSnapshot } = require('./windows-printer');
 const { configureAppProfile, importSupportPairing } = require('./app-profile');
+const { registerPrintAssetScheme } = require('./print-assets');
+registerPrintAssetScheme();
 const diagnosticsOnly = process.argv.includes('--diagnostics-only') || Boolean(process.env.PORTABLE_EXECUTABLE_FILE);
 const profile = configureAppProfile(app, diagnosticsOnly);
 

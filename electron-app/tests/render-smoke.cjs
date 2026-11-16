@@ -6,12 +6,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
+const { registerPrintAssetScheme, ensurePrintAssetHandler, PRINT_PAGE_URL } = require('../src/main/print-assets');
+registerPrintAssetScheme();
 
 app.disableHardwareAcceleration();
 const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scanitprintit-render-'));
 const timeout = setTimeout(() => { console.error('Renderer smoke test timed out.'); app.exit(1); }, 60000);
 
 app.whenReady().then(async () => {
+  await ensurePrintAssetHandler();
   const channel = `print:document:${crypto.randomUUID()}`;
   let bytes;
   const win = new BrowserWindow({ width: 850, height: 1200, show: false, webPreferences: {
@@ -19,15 +22,14 @@ app.whenReady().then(async () => {
     additionalArguments: [`--print-channel=${channel}`],
     contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false,
   } });
-  win.webContents.on('console-message', (_, detail) => { if (detail.level === 'error') console.error('Renderer:', detail.message); });
+  win.webContents.on('console-message', event => { console.error('Renderer:', event.message); });
   ipcMain.handle(channel, () => bytes);
   try {
     const fixture = `<style>@page { size: A4; margin: 0; } body { margin: 0; } section { box-sizing: border-box; padding: 24mm; height: 297mm; break-after: page; } section:last-child { break-after: auto; }</style><section><h1>ScanItPrintIt print test</h1><p>Page 1: readable PDF text</p><div style="width:100px;height:100px;background:#d97706"></div></section><section><h1>Second page</h1><p>Page 2: copies should remain complete documents.</p><p>1234567890 ABCDEFGHIJKLMNOPQRSTUVWXYZ</p></section>`;
     await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fixture)}`);
     bytes = await win.webContents.printToPDF({ pageSize: 'A4', printBackground: true });
     fs.writeFileSync(path.join(outputDir, 'input.pdf'), bytes);
-    const printPage = path.resolve(__dirname, '../src/renderer/print.html');
-    await win.loadFile(printPage);
+    await win.loadURL(PRINT_PAGE_URL);
     const result = await win.webContents.executeJavaScript('window.printReady');
     assert.equal(result.success, true, result.error);
     assert.equal(result.pages, 2);
@@ -35,13 +37,13 @@ app.whenReady().then(async () => {
     fs.writeFileSync(path.join(outputDir, 'rendered.png'), screenshot.toPNG());
     bytes = await win.webContents.printToPDF({ pageSize: 'A4', printBackground: true, margins: { top: 0, bottom: 0, left: 0, right: 0 } });
     fs.writeFileSync(path.join(outputDir, 'rendered.pdf'), bytes);
-    await win.loadFile(printPage);
+    await win.loadURL(PRINT_PAGE_URL);
     const roundTrip = await win.webContents.executeJavaScript('window.printReady');
     assert.equal(roundTrip.success, true, roundTrip.error);
     assert.equal(roundTrip.pages, 2, 'Rasterized document must preserve page count without extra blank pages.');
 
     bytes = Buffer.from('<html>bad cloud download</html>');
-    await win.loadFile(printPage);
+    await win.loadURL(PRINT_PAGE_URL);
     const invalid = await win.webContents.executeJavaScript('window.printReady');
     assert.equal(invalid.success, false);
     assert.match(invalid.error, /not a PDF/);

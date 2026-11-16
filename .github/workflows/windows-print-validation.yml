@@ -32,8 +32,8 @@ jobs:
         run: node node_modules/electron/install.js
       - name: Unit tests
         run: npm test
-      - name: Build current Windows app archive
-        run: npx electron-builder --win --x64 --dir --publish never '-c.directories.output=dist/windows-ci'
+      - name: Build Windows installer and app archive
+        run: npx electron-builder --win nsis --x64 --publish never '-c.directories.output=dist/windows-ci'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - name: Put candidate archive in representative Windows path
@@ -80,3 +80,12 @@ jobs:
           name: windows-print-results
           path: electron-app/windows-print-results
           if-no-files-found: warn
+      - name: Keep verified Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-agent-installer
+          path: |
+            electron-app/dist/windows-ci/*.exe
+            electron-app/dist/windows-ci/*.blockmap
+            electron-app/dist/windows-ci/latest.yml
+          if-no-files-found: error

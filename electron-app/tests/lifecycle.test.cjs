@@ -10,7 +10,7 @@ async function setup({ locked = true, printing = false, support = false, verifyR
   const counters = { starts: 0, stops: 0, installed: 0, quit: 0, exited: 0, loginItems: 0 };
   const app = Object.assign(new EventEmitter(), {
     requestSingleInstanceLock: () => { assert.equal(counters.profileConfigured, true, 'The profile must be selected before the launch lock'); return locked; },
-    whenReady: () => Promise.resolve(),
+    whenReady: () => { assert.equal(counters.schemeRegistered, true, 'Print scheme privileges must be registered before app readiness'); return Promise.resolve(); },
     getVersion: () => '1.1.8', getAppPath: () => path.resolve(__dirname, '..'),
     getPath: () => '/tmp/agent.exe', setLoginItemSettings() { counters.loginItems++; },
     quit() {
@@ -55,6 +55,7 @@ async function setup({ locked = true, printing = false, support = false, verifyR
     },
     './diagnostics': { recordDiagnostic() {}, createDiagnostics: () => ({ start() {}, stop() {}, flush: async () => {} }) },
     './renderer-self-test': { verifyRenderer },
+    './print-assets': { registerPrintAssetScheme() { counters.schemeRegistered = true; } },
     'electron-updater': { autoUpdater: updater },
   }, { process: fakeProcess, setTimeout: () => {} });
   await settle();
