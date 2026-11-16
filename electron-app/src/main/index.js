@@ -96,6 +96,26 @@ function bootstrap() {
   let updateReady = false;
   let installingUpdate = false;
   let diagnostics;
+  let rendererCheck = null;
+
+  function checkRendererReadiness() {
+    if (rendererCheck) return rendererCheck;
+    if (agent.isPrinting()) return Promise.resolve({ success: false, error: 'Wait for the active print to finish before checking the print engine.' });
+    agent.setRendererReadiness({ status: 'checking' });
+    rendererCheck = (async () => {
+      let result;
+      try { result = await verifyRenderer(); }
+      catch (error) { result = { success: false, error: error.message }; }
+      agent.setRendererReadiness({ status: result.success ? 'ready' : 'failed', error: result.error });
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('agent:event', {
+        type: result.success ? 'info' : 'error',
+        message: result.success ? 'Document renderer self-test passed.' : `Printing paused: ${result.error}`,
+      });
+      void diagnostics?.flush(true);
+      return result;
+    })().finally(() => { rendererCheck = null; });
+    return rendererCheck;
+  }
 
   function startAgent() {
     agent.start(store, (event, data) => {
@@ -227,18 +247,13 @@ function bootstrap() {
       { role: 'viewMenu' },
     ]));
     ipcHandlers.register(ipcMain, store, mainWindow);
+    ipcMain.handle('engine:retry', () => checkRendererReadiness());
     startAgent();
     diagnostics.start();
     recordDiagnostic({ stage: 'startup', code: 'RUN_MODE', message: diagnosticsOnly ? 'Standalone support mode: automatic order printing is paused' : 'Installed agent: automatic order processing enabled', data: { diagnosticsOnly } });
     if (diagnosticsOnly) recordDiagnostic({ stage: 'startup', code: 'SUPPORT_PROFILE', message: 'Support opened with its own profile and instance lock', data: { pairingImported } });
     void getAgentProcessSnapshot().then(snapshot => recordDiagnostic({ stage: 'installer', code: 'AGENT_PROCESS_SCAN', message: 'Agent processes visible to Windows', data: snapshot }));
-    void verifyRenderer().then(result => {
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('agent:event', {
-        type: result.success ? 'info' : 'error',
-        message: result.success ? 'Document renderer self-test passed.' : `Document renderer self-test failed: ${result.error}`,
-      });
-      void diagnostics.flush(true);
-    });
+    void checkRendererReadiness();
 
     // Setup auto-updater and check for updates 5s after launch (give time for UI to load)
     setupAutoUpdater(mainWindow);

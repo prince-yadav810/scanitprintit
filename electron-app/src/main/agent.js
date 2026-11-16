@@ -28,6 +28,12 @@ let isPrinting = false; // Block disconnect while printing
 let running = false;
 let activeJob = null;
 let diagnosticsOnly = false;
+let rendererReadiness = { status: 'checking', error: null };
+
+function rejectPairing() {
+  store?.delete('token');
+  emit?.('agent:event', { type: 'unpaired', message: 'Device pairing was rejected. Generate a new pairing code in your shop dashboard.' });
+}
 
 // ─── API Helpers ─────────────────────────────────────────────────────────────
 function apiFetch(endpoint, method = 'GET', body = null) {
@@ -276,16 +282,18 @@ async function poll() {
     if (!token) return;
 
     await syncPendingStatuses();
+    // Recovery acknowledgements must continue even when the print engine is
+    // unavailable. Only new customer work waits for the renderer self-test.
+    if (rendererReadiness.status !== 'ready') return;
     const res  = await apiFetch('/agent/jobs');
     const data = res.json();
 
     if (res.status === 401) {
-      store?.delete('token');
-      emit('agent:event', { type: 'unpaired', message: 'Token rejected by server. Please re-pair.' });
+      rejectPairing();
       return;
     }
 
-    if (!running || !data.success || !data.jobs?.length) return;
+    if (!running || rendererReadiness.status !== 'ready' || !data.success || !data.jobs?.length) return;
 
     const job = data.jobs[0];
     if (store?.get('pendingStatuses', {})?.[job.id]) return;
@@ -315,6 +323,7 @@ module.exports = {
     store = _store;
     emit  = _emit;
     diagnosticsOnly = options.diagnosticsOnly === true;
+    if (options.rendererReady === true) rendererReadiness = { status: 'ready', error: null };
     const interrupted = store?.get('activePrintAttempt');
     if (interrupted && !isPrinting) {
       recordDiagnostic({ level: 'error', stage: 'recovery', code: 'INTERRUPTED_ATTEMPT', orderId: interrupted.orderId, attemptId: interrupted.attemptId,
@@ -344,6 +353,16 @@ module.exports = {
   },
   isDiagnosticsOnly() { return diagnosticsOnly; },
 
+  getRendererReadiness() {
+    return { ...rendererReadiness, diagnosticsOnly };
+  },
+
+  setRendererReadiness(result) {
+    if (!['checking', 'ready', 'failed'].includes(result.status)) throw new Error('Invalid renderer readiness state.');
+    rendererReadiness = { status: result.status, error: result.status === 'failed' ? result.error || 'The print engine check failed.' : null };
+    emit?.('agent:readiness', this.getRendererReadiness());
+  },
+
   waitForIdle() {
     return activeJob || Promise.resolve();
   },
@@ -371,6 +390,10 @@ module.exports = {
 
   async getDashboard() {
     const res  = await apiFetch('/owner/dashboard');
+    if (res.status === 401) {
+      rejectPairing();
+      throw new Error('Device pairing was rejected. Pair this device again.');
+    }
     return res.json();
   },
 
@@ -425,6 +448,7 @@ module.exports = {
 
   async printTestPage() {
     if (isPrinting || isPolling) return { success: false, error: 'The agent is busy. Wait for the current job check or print to finish.' };
+    if (rendererReadiness.status === 'checking') return { success: false, error: 'The print engine check is still running. Wait for its result before printing a test page.' };
     if (os.platform() !== 'win32') return { success: false, error: 'The printer test requires Windows.' };
     isPrinting = true;
     const attemptId = crypto.randomUUID();

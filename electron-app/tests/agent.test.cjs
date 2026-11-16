@@ -25,7 +25,11 @@ function setup(options = {}) {
       req.destroy = () => {};
       req.end = () => queueMicrotask(() => {
         let result = { status: 200, data: { success: true } };
-        if (config.path === '/api/agent/jobs') result.data.jobs = state === 'PAID_QUEUED' ? [job] : [];
+        if (config.path === '/api/agent/jobs') {
+          options.onJobsRequest?.();
+          if (options.tokenRejected) result = { status: 401, data: { error: 'Invalid token' } };
+          else result.data.jobs = state === 'PAID_QUEUED' ? [job] : [];
+        }
         if (config.path.endsWith('/actions')) {
           if (options.actionRejected) result = { status: 422, data: { error: 'Documents expired' } };
           else state = body.action === 'retry' ? 'PAID_QUEUED' : 'CANCELLED';
@@ -70,7 +74,7 @@ function setup(options = {}) {
     './native-print': { printDocument: async (...args) => { prints++; return options.print?.(...args); } },
     './renderer-self-test': { fixturePdf: () => Buffer.from('%PDF-1.4 test page') },
   }, { ...timers, setInterval: (callback, delay) => { intervals.set(delay, callback); return delay; }, clearInterval: delay => intervals.delete(delay) });
-  agent.start(store, (event, detail) => events.push({ event, detail }));
+  agent.start(store, (event, detail) => events.push({ event, detail }), { rendererReady: options.rendererReady !== false });
   return { agent, data, events, statuses, timers, job, poll: () => intervals.get(5000)(), get prints() { return prints; }, get state() { return state; }, get intervals() { return intervals; }, get downloadRequest() { return downloadRequest; } };
 }
 
@@ -80,6 +84,55 @@ test('server rejects a duplicate claim: no download, no print, no status overwri
   assert.equal(s.prints, 0);
   assert.deepEqual(s.statuses, ['PRINTING']);
   assert.equal(s.agent.isPrinting(), false);
+  s.agent.stop();
+});
+
+test('pending and failed renderer checks leave paid orders queued, success enables processing', async () => {
+  const s = setup({ rendererReady: false });
+  await s.poll();
+  assert.equal(s.state, 'PAID_QUEUED');
+  assert.equal(s.statuses.length, 0);
+  assert.equal(s.prints, 0);
+  assert.equal((await s.agent.printTestPage()).success, false);
+  s.agent.setRendererReadiness({ status: 'failed', error: 'Print page unavailable' });
+  await s.poll();
+  assert.equal(s.statuses.length, 0);
+  assert.equal(s.agent.getRendererReadiness().error, 'Print page unavailable');
+  s.agent.setRendererReadiness({ status: 'ready' });
+  await s.poll();
+  assert.equal(s.state, 'PRINTED');
+  assert.equal(s.prints, 1);
+  s.agent.stop();
+});
+
+test('an engine check started during a job fetch prevents that job from being claimed', async () => {
+  let pause;
+  const s = setup({ onJobsRequest: () => pause() });
+  pause = () => s.agent.setRendererReadiness({ status: 'checking' });
+  await s.poll();
+  assert.equal(s.state, 'PAID_QUEUED');
+  assert.equal(s.statuses.length, 0);
+  assert.equal(s.prints, 0);
+  s.agent.stop();
+});
+
+test('failed renderer readiness does not block acknowledgements for already completed prints', async () => {
+  const s = setup({ rendererReady: false, saved: { token: 'paired-token', pendingStatuses: { 'order-1': { status: 'PRINTED', orderNumber: 'ABC123' } } } });
+  s.agent.setRendererReadiness({ status: 'failed', error: 'Renderer unavailable' });
+  await s.poll();
+  assert.equal(s.state, 'PRINTED');
+  assert.equal(s.prints, 0);
+  assert.equal(Object.keys(s.data.pendingStatuses).length, 0);
+  s.agent.stop();
+});
+
+test('rejected pairing credentials stop claims and emit a persistent pairing transition', async () => {
+  const s = setup({ tokenRejected: true });
+  await s.poll();
+  assert.equal(s.data.token, undefined);
+  assert.equal(s.statuses.length, 0);
+  assert.equal(s.prints, 0);
+  assert(s.events.some(event => event.event === 'agent:event' && event.detail.type === 'unpaired'));
   s.agent.stop();
 });
 

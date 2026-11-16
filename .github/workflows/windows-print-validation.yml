@@ -49,7 +49,7 @@ jobs:
           $exe = Join-Path $target 'Support-1.1.9.exe'
           Invoke-WebRequest 'https://github.com/prince-yadav810/scanitprintit/releases/download/support-1.1.9-20261113/ScanItPrintIt-Support-1.1.9.exe' -OutFile $exe
           if ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLower() -ne '5943e88a5594cebf482dcc81f887188431f24a9621fc61d4ff70a794dc6f6ab4') { throw 'Baseline executable checksum mismatch' }
-          & 7z x $exe "-o$target" -y
+          & 7z x -t7z $exe "-o$target" -y
           if ($LASTEXITCODE -ne 0) { throw 'Baseline archive extraction failed' }
           if (!(Test-Path (Join-Path $target 'resources/app.asar'))) { throw 'Baseline archive missing after extraction' }
           "BASELINE_ARCHIVE=$(Join-Path $target 'resources/app.asar')" >> $env:GITHUB_ENV

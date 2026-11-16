@@ -4,7 +4,7 @@ const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { load, settle } = require('./helpers.cjs');
 
-async function setup({ locked = true, printing = false, support = false } = {}) {
+async function setup({ locked = true, printing = false, support = false, verifyRenderer = async () => ({ success: true }) } = {}) {
   const windows = [];
   const handlers = new Map();
   const counters = { starts: 0, stops: 0, installed: 0, quit: 0, exited: 0, loginItems: 0 };
@@ -29,6 +29,7 @@ async function setup({ locked = true, printing = false, support = false } = {}) 
   const agent = {
     start(_, __, options) { counters.starts++; counters.support = options?.diagnosticsOnly; }, stop() { counters.stops++; },
     isPrinting: () => active, waitForIdle: () => idle,
+    setRendererReadiness(result) { counters.readiness = result; },
   };
   class Window extends EventEmitter {
     constructor() {
@@ -53,7 +54,7 @@ async function setup({ locked = true, printing = false, support = false } = {}) 
       importSupportPairing() { return false; },
     },
     './diagnostics': { recordDiagnostic() {}, createDiagnostics: () => ({ start() {}, stop() {}, flush: async () => {} }) },
-    './renderer-self-test': { verifyRenderer: async () => ({ success: true }) },
+    './renderer-self-test': { verifyRenderer },
     'electron-updater': { autoUpdater: updater },
   }, { process: fakeProcess, setTimeout: () => {} });
   await settle();
@@ -65,6 +66,25 @@ test('a second agent process exits without starting another polling loop', async
   assert.equal(s.counters.starts, 0);
   assert.equal(s.counters.quit, 1);
   assert.equal(s.windows.length, 0);
+});
+
+test('startup leaves the engine checking until verification succeeds', async () => {
+  let finish;
+  const s = await setup({ verifyRenderer: () => new Promise(resolve => { finish = resolve; }) });
+  assert.equal(s.counters.starts, 1, 'Auth and diagnostics still initialize');
+  assert.equal(s.counters.readiness.status, 'checking');
+  finish({ success: true });
+  await settle();
+  assert.equal(s.counters.readiness.status, 'ready');
+});
+
+test('failed startup remains paused and an explicit successful retry restores readiness', async () => {
+  let checks = 0;
+  const s = await setup({ verifyRenderer: async () => ++checks === 1 ? { success: false, error: 'Missing renderer' } : { success: true } });
+  assert.equal(s.counters.readiness.status, 'failed');
+  assert.equal(s.counters.readiness.error, 'Missing renderer');
+  assert.equal((await s.handlers.get('engine:retry')()).success, true);
+  assert.equal(s.counters.readiness.status, 'ready');
 });
 
 test('the standalone launcher enables support mode and does not register itself for Windows startup', async () => {

@@ -101,6 +101,7 @@ module.exports = {
 
     ipcMain.handle('diagnostics:status', () => getDiagnostics()?.status() || { pending: 0, lastSyncedAt: null, history: [] });
     ipcMain.handle('diagnostics:printTestPage', () => agent.printTestPage());
+    ipcMain.handle('engine:status', () => agent.getRendererReadiness());
 
     // ── Settings ──────────────────────────────────────────────────────────────
     ipcMain.handle('settings:get', () => {

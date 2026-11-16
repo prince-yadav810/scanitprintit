@@ -33,6 +33,13 @@ contextBridge.exposeInMainWorld('api', {
   getAppVersion: () => ipcRenderer.invoke('updater:getVersion'),
   getDiagnosticStatus: () => ipcRenderer.invoke('diagnostics:status'),
   printTestPage: () => ipcRenderer.invoke('diagnostics:printTestPage'),
+  getRendererReadiness: () => ipcRenderer.invoke('engine:status'),
+  retryRendererCheck: () => ipcRenderer.invoke('engine:retry'),
+  onRendererReadiness: (callback) => {
+    const handler = (_, state) => callback(state);
+    ipcRenderer.on('agent:readiness', handler);
+    return () => ipcRenderer.removeListener('agent:readiness', handler);
+  },
   onUpdaterStatus: (callback) => {
     const handler = (_, data) => callback(data);
     ipcRenderer.on('updater:status', handler);
