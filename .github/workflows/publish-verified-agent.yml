@@ -1,0 +1,59 @@
+name: Publish verified Agent 1.1.10 draft
+on:
+  push:
+    branches: [codex/publish-agent-1.1.10]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish-tested-installer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFIED_COMMIT: aeb2e4f906739cea34cd385154ee2889fdef1bf8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          sparse-checkout: |
+            electron-app
+            release-notes
+            .github
+      - name: Require successful Windows tests of the exact source
+        run: |
+          gh api repos/$GITHUB_REPOSITORY/actions/runs/43871637658 > /tmp/verified-run.json
+          python3 - <<'PY'
+          import json,os
+          r=json.load(open('/tmp/verified-run.json'))
+          assert r['conclusion']=='success' and r['status']=='completed'
+          assert r['head_sha']==os.environ['VERIFIED_COMMIT']
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-agent-installer
+          path: release
+          run-id: 43871637658
+          github-token: ${{ github.token }}
+      - name: Prepare exact tested installer, matching source and checksums
+        run: |
+          mv 'release/ScanItPrintIt Agent Setup 1.1.10.exe' release/ScanItPrintIt-Agent-Setup-1.1.10.exe
+          python3 - <<'PY'
+          import pathlib,hashlib,base64,re
+          root=pathlib.Path('release')
+          exe=root/'ScanItPrintIt-Agent-Setup-1.1.10.exe'
+          feed=(root/'latest.yml').read_text()
+          assert re.search(r'^version: 1\.1\.10$',feed,re.M)
+          hashes=re.findall(r'^\s*sha512:\s+(\S+)',feed,re.M)
+          actual=base64.b64encode(hashlib.sha512(exe.read_bytes()).digest()).decode()
+          assert hashes and all(h==actual for h in hashes)
+          print('Verified installer',exe.stat().st_size,'bytes; SHA256',hashlib.sha256(exe.read_bytes()).hexdigest())
+          PY
+          git archive --format=tar.gz --prefix=ScanItPrintIt-Agent-1.1.10/ --output=release/ScanItPrintIt-Agent-1.1.10-source.tar.gz "$VERIFIED_COMMIT" electron-app .github
+          cd release
+          sha256sum ScanItPrintIt-Agent-Setup-1.1.10.exe ScanItPrintIt-Agent-1.1.10-source.tar.gz > SHA256SUMS.txt
+      - name: Create draft release for final verification
+        run: |
+          gh release create agent-1.1.10 --target "$VERIFIED_COMMIT" --title 'ScanItPrintIt Agent 1.1.10 — Windows print validation' --notes-file release-notes/agent-1.1.10.md --prerelease --draft
+          gh release upload agent-1.1.10 release/ScanItPrintIt-Agent-Setup-1.1.10.exe release/ScanItPrintIt-Agent-1.1.10-source.tar.gz release/SHA256SUMS.txt
+          gh release view agent-1.1.10 --json url,isDraft,assets
