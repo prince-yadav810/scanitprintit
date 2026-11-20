@@ -119,16 +119,25 @@ async function finishJob(job, status) {
 
 function downloadFile(url, destPath, maxRedirects = 5) {
   return new Promise((resolve, reject) => {
+    const maxBytes = 100_000_000;
     let activeRequest;
     let stream;
     let settled = false;
     let bytes = 0;
     let contentType;
-    const timer = setTimeout(() => finish(new Error('Document download timed out.')), 30000);
+    let idleTimer;
+    // Large uploads can take several minutes on a working connection. The
+    // short timer measures a lack of progress, separately from the hard limit.
+    const deadline = setTimeout(() => finish(new Error('Document download exceeded 10 minutes.')), 10 * 60_000);
+    const resetIdleTimer = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => finish(new Error('Document download stalled for 30 seconds.')), 30_000);
+    };
     const finish = (error) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      clearTimeout(idleTimer);
+      clearTimeout(deadline);
       if (error) {
         activeRequest?.destroy();
         stream?.destroy();
@@ -141,6 +150,7 @@ function downloadFile(url, destPath, maxRedirects = 5) {
         const parsed = new URL(currentUrl);
         if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported document URL.');
         const client = parsed.protocol === 'https:' ? https : http;
+        resetIdleTimer();
         activeRequest = client.get(parsed, (res) => {
           if (settled) { res.resume(); return; }
           if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
@@ -154,13 +164,30 @@ function downloadFile(url, destPath, maxRedirects = 5) {
             res.resume();
             return finish(new Error(`Download failed: HTTP ${res.statusCode}`));
           }
+          const contentLength = Number(res.headers?.['content-length']);
+          if (contentLength > maxBytes) {
+            res.resume();
+            return finish(new Error('Document exceeds the 100 MB download limit.'));
+          }
+          resetIdleTimer();
           stream = fs.createWriteStream(destPath);
           contentType = res.headers?.['content-type'] || null;
-          res.on('data', chunk => { bytes += chunk.length; });
+          res.on('data', chunk => {
+            bytes += chunk.length;
+            if (bytes > maxBytes) {
+              finish(new Error('Document exceeds the 100 MB download limit.'));
+            } else resetIdleTimer();
+          });
           res.on('error', finish);
           res.on('aborted', () => finish(new Error('Document download was interrupted.')));
           stream.on('error', finish);
-          stream.on('finish', () => stream.close(error => finish(error)));
+          stream.on('finish', () => stream.close(error => {
+            if (error) return finish(error);
+            if (!bytes || (Number.isFinite(contentLength) && contentLength !== bytes)) {
+              return finish(new Error('Document download was incomplete.'));
+            }
+            finish();
+          }));
           res.pipe(stream);
         });
         activeRequest.on('error', finish);
@@ -210,7 +237,15 @@ async function processJob(job) {
     for (const file of job.files) {
       currentFileId = file.id;
       stage = 'document-download';
-      const downloadUrl = file.convertedPdfUrl || file.cloudinaryUrl;
+      let downloadUrl = file.convertedPdfUrl || file.cloudinaryUrl;
+      if (file.refreshDownload && file.status !== 'EXPIRED') {
+        const fresh = await apiFetch(`/agent/jobs/${encodeURIComponent(job.id)}/files/${encodeURIComponent(file.id)}`);
+        const result = fresh.json();
+        if (fresh.status !== 200 || typeof result.url !== 'string') {
+          throw new Error(result.error || 'Could not get a fresh document download.');
+        }
+        downloadUrl = result.url;
+      }
       if (!downloadUrl || file.status === 'EXPIRED') throw new Error('The document is no longer available. Its upload has expired; retrying cannot restore it.');
       const tempPath = path.join(os.tmpdir(), `sip_${crypto.randomUUID()}.pdf`);
       try {

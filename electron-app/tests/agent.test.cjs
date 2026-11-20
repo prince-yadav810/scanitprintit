@@ -16,6 +16,9 @@ function setup(options = {}) {
   let state = 'PAID_QUEUED';
   let prints = 0;
   let downloadRequest;
+  let downloadStream;
+  const requestedUrls = [];
+  if (options.refreshDownload) Object.assign(job.files[0], { id: 'file-1', refreshDownload: true });
   const client = {
     request(config, callback) {
       const req = new EventEmitter();
@@ -29,6 +32,9 @@ function setup(options = {}) {
           options.onJobsRequest?.();
           if (options.tokenRejected) result = { status: 401, data: { error: 'Invalid token' } };
           else result.data.jobs = state === 'PAID_QUEUED' ? [job] : [];
+        }
+        if (config.path.endsWith('/files/file-1')) {
+          result.data.url = 'https://files.test/fresh.pdf';
         }
         if (config.path.endsWith('/actions')) {
           if (options.actionRejected) result = { status: 422, data: { error: 'Documents expired' } };
@@ -51,11 +57,13 @@ function setup(options = {}) {
       const req = new EventEmitter();
       req.destroy = () => {};
       downloadRequest = req;
+      requestedUrls.push(url.href);
       if (!options.downloadHangs) queueMicrotask(() => {
         const res = new PassThrough();
         res.statusCode = options.downloadFails ? 404 : 200;
         callback(res);
-        res.end('%PDF-1.4 test content');
+        if (options.manualDownload) downloadStream = res;
+        else res.end('%PDF-1.4 test content');
       });
       return req;
     },
@@ -75,7 +83,7 @@ function setup(options = {}) {
     './renderer-self-test': { fixturePdf: () => Buffer.from('%PDF-1.4 test page') },
   }, { ...timers, setInterval: (callback, delay) => { intervals.set(delay, callback); return delay; }, clearInterval: delay => intervals.delete(delay) });
   agent.start(store, (event, detail) => events.push({ event, detail }), { rendererReady: options.rendererReady !== false });
-  return { agent, data, events, statuses, timers, job, poll: () => intervals.get(5000)(), get prints() { return prints; }, get state() { return state; }, get intervals() { return intervals; }, get downloadRequest() { return downloadRequest; } };
+  return { agent, data, events, statuses, timers, job, requestedUrls, get downloadStream() { return downloadStream; }, poll: () => intervals.get(5000)(), get prints() { return prints; }, get state() { return state; }, get intervals() { return intervals; }, get downloadRequest() { return downloadRequest; } };
 }
 
 test('server rejects a duplicate claim: no download, no print, no status overwrite', async () => {
@@ -154,6 +162,29 @@ test('a hung download times out instead of leaving the shop permanently printing
   await polling;
   assert.equal(s.state, 'NEEDS_ATTENTION');
   assert.equal(s.agent.isPrinting(), false);
+  s.agent.stop();
+});
+
+test('a progressing download can take more than 30 seconds and still print once', async () => {
+  const s = setup({ manualDownload: true });
+  const pending = s.poll();
+  await settle();
+  s.timers.advance(20_000);
+  s.downloadStream.write('%PDF-1.4');
+  await settle();
+  s.timers.advance(20_000);
+  s.downloadStream.end(' document');
+  await pending;
+  assert.equal(s.state, 'PRINTED');
+  assert.equal(s.prints, 1);
+  s.agent.stop();
+});
+
+test('the agent obtains a fresh signed URL before downloading a private file', async () => {
+  const s = setup({ refreshDownload: true });
+  await s.poll();
+  assert.deepEqual(s.requestedUrls, ['https://files.test/fresh.pdf']);
+  assert.equal(s.state, 'PRINTED');
   s.agent.stop();
 });
 
