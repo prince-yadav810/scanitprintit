@@ -11,12 +11,14 @@ const { configureAppProfile, importSupportPairing } = require('./app-profile');
 const { registerPrintAssetScheme } = require('./print-assets');
 registerPrintAssetScheme();
 const diagnosticsOnly = process.argv.includes('--diagnostics-only') || Boolean(process.env.PORTABLE_EXECUTABLE_FILE);
-const profile = configureAppProfile(app, diagnosticsOnly);
+const storePackage = process.windowsStore === true;
+const usesWebsiteUpdater = !diagnosticsOnly && !storePackage;
+const profile = configureAppProfile(app, diagnosticsOnly, storePackage);
 
 function bootstrap() {
   // ─── Auto Updater setup ───────────────────────────────────────────────────────
-  autoUpdater.autoDownload = !diagnosticsOnly;
-  autoUpdater.autoInstallOnAppQuit = !diagnosticsOnly;
+  autoUpdater.autoDownload = usesWebsiteUpdater;
+  autoUpdater.autoInstallOnAppQuit = usesWebsiteUpdater;
 
   function setupAutoUpdater(win) {
     autoUpdater.on('checking-for-update', () => {
@@ -52,6 +54,7 @@ function bootstrap() {
 
   // IPC: renderer triggers check or install
   ipcMain.handle('updater:check', async () => {
+    if (storePackage) return { success: false, error: 'Check for updates in Microsoft Store.' };
     if (diagnosticsOnly) return { success: false, error: 'Support mode does not download updates. Open the latest support download instead.' };
     try {
       await autoUpdater.checkForUpdates();
@@ -62,6 +65,7 @@ function bootstrap() {
   });
 
   ipcMain.handle('updater:install', () => {
+    if (storePackage) return { success: false, error: 'Updates are installed by Microsoft Store.' };
     if (diagnosticsOnly) return { success: false, error: 'Support mode does not install updates. Use the installed agent or setup.' };
     if (agent.isPrinting()) return { success: false, error: 'A print job is running. Wait for it to finish before installing the update.' };
     if (!updateReady) return { success: false, error: 'No downloaded update is ready to install.' };
@@ -248,7 +252,7 @@ function bootstrap() {
       { role: 'editMenu' },
       { role: 'viewMenu' },
     ]));
-    ipcHandlers.register(ipcMain, store, mainWindow);
+    ipcHandlers.register(ipcMain, store, mainWindow, { storePackage });
     ipcMain.handle('engine:retry', () => checkRendererReadiness());
     startAgent();
     diagnostics.start();
@@ -258,12 +262,14 @@ function bootstrap() {
     void checkRendererReadiness();
 
     // Setup auto-updater and check for updates 5s after launch (give time for UI to load)
-    setupAutoUpdater(mainWindow);
-    if (!diagnosticsOnly) setTimeout(() => {
-      autoUpdater.checkForUpdates().catch(err => {
-        console.warn('Update check failed (possibly offline):', err.message);
-      });
-    }, 5000);
+    if (usesWebsiteUpdater) {
+      setupAutoUpdater(mainWindow);
+      setTimeout(() => {
+        autoUpdater.checkForUpdates().catch(err => {
+          console.warn('Update check failed (possibly offline):', err.message);
+        });
+      }, 5000);
+    }
   });
 
   app.on('window-all-closed', () => {
@@ -285,7 +291,7 @@ function bootstrap() {
   });
 
   // Auto-launch on Windows startup
-  if (!diagnosticsOnly) app.setLoginItemSettings({
+  if (usesWebsiteUpdater) app.setLoginItemSettings({
     openAtLogin: store.get('autoLaunch', true),
     path: app.getPath('exe'),
   });

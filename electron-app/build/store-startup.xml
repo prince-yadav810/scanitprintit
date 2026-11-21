@@ -1,0 +1,3 @@
+<desktop:Extension Category="windows.startupTask" Executable="app\ScanItPrintIt Agent.exe" EntryPoint="Windows.FullTrustApplication">
+  <desktop:StartupTask TaskId="ScanItPrintItStartup" Enabled="false" DisplayName="ScanItPrintIt" />
+</desktop:Extension>

@@ -10,7 +10,8 @@
     "build": "electron-builder --win --x64",
     "pack": "electron-builder --dir",
     "test": "node --test tests/*.test.cjs",
-    "test:render": "electron tests/render-smoke.cjs"
+    "test:render": "electron tests/render-smoke.cjs",
+    "build:windows-store": "node build/windows-store.cjs"
   },
   "dependencies": {
     "electron-store": "^7.0.2",

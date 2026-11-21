@@ -1,0 +1,107 @@
+name: Windows Store package
+
+on:
+  push:
+    branches: [codex/store-agent-1.1.13]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: electron-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            electron-app
+            .github
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: electron-app/package-lock.json
+      - run: npm ci
+      - run: node node_modules/electron/install.js
+      - run: npm test
+      - name: Build unsigned Store submission package
+        run: npm run build:windows-store
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify Store identity and archive
+        run: |
+          $file = Get-ChildItem dist/windows-store -Filter '*.appx' -File
+          if (@($file).Count -ne 1) { throw 'Expected one Store package.' }
+          $expected = Get-Content build/store-identity.json -Raw | ConvertFrom-Json
+          $metadata = Get-Content package.json -Raw | ConvertFrom-Json
+          $root = Join-Path $env:RUNNER_TEMP 'appx-content'
+          [IO.Compression.ZipFile]::ExtractToDirectory($file.FullName, $root)
+          [xml]$manifest = Get-Content (Join-Path $root 'AppxManifest.xml') -Raw
+          $id = $manifest.Package.Identity
+          if ($id.Name -cne $expected.identityName -or $id.Publisher -cne $expected.publisher -or $manifest.Package.Properties.PublisherDisplayName -cne $expected.publisherDisplayName -or $manifest.Package.Properties.DisplayName -cne $expected.displayName) { throw 'Package identity does not match Partner Center.' }
+          if ($id.Version -ne "$($metadata.version).0" -or $id.ProcessorArchitecture -ne 'x64') { throw 'Unexpected Store package version or architecture.' }
+          if (Test-Path (Join-Path $root 'AppxSignature.p7x')) { throw 'Expected an unsigned Store upload.' }
+          if (!(Test-Path (Join-Path $root 'app/resources/app.asar'))) { throw 'Application payload is missing.' }
+          if (Test-Path (Join-Path $root 'app/resources/app-update.yml')) { throw 'Store build includes the website updater feed.' }
+          "SIP_STORE_PACKAGE=$($file.FullName)" >> $env:GITHUB_ENV
+          "SIP_STORE_PAYLOAD=$root" >> $env:GITHUB_ENV
+          Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256
+      - name: Test Windows application and capture listing screenshot
+        run: |
+          $app = Join-Path $env:SIP_STORE_PAYLOAD 'app'
+          node tests/windows-executable-smoke.cjs (Join-Path $app 'ScanItPrintIt Agent.exe') windows-store-results/executable
+          if ($LASTEXITCODE -ne 0) { throw 'Store payload startup failed.' }
+          $asar = Join-Path $app 'resources/app.asar'
+          foreach ($mode in @('render', 'windows-discovery', 'startup', 'order-flow')) {
+            & .\node_modules\electron\dist\electron.exe tests/windows-packaged-smoke.cjs $asar $mode windows-store-results/payload | Out-Default
+            if ($LASTEXITCODE -ne 0) { throw "Store payload test failed: $mode" }
+          }
+          & .\node_modules\electron\dist\electron.exe tests/windows-trial-entry.cjs $asar windows-store-results/ScanItPrintIt-dashboard.png store | Out-Default
+          if ($LASTEXITCODE -ne 0) { throw 'Trial and sign-out test failed.' }
+      - name: Install and launch a test-signed copy
+        shell: powershell
+        run: |
+          $expected = Get-Content build/store-identity.json -Raw | ConvertFrom-Json
+          $sdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin'
+          $signtool = Get-ChildItem -Path "$sdk/*/x64/signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          if (!$signtool) { throw 'Windows SDK SignTool is missing.' }
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject $expected.publisher -CertStoreLocation 'Cert:\CurrentUser\My'
+          $cer = Join-Path $env:RUNNER_TEMP 'store-test.cer'
+          Export-Certificate -Cert $cert -FilePath $cer | Out-Null
+          Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
+          $appx = Join-Path $env:RUNNER_TEMP 'store-test.appx'
+          Copy-Item -LiteralPath $env:SIP_STORE_PACKAGE -Destination $appx
+          & $signtool.FullName sign /fd SHA256 /sha1 $cert.Thumbprint $appx
+          if ($LASTEXITCODE -ne 0) { throw 'Could not sign the temporary test copy.' }
+          Add-AppxPackage -Path $appx -ErrorAction Stop
+          $package = Get-AppxPackage -Name $expected.identityName
+          if (!$package -or $package.Status -ne 'Ok') { throw 'Windows did not register the test package.' }
+          try {
+            Start-Process explorer.exe -ArgumentList "shell:AppsFolder\$($package.PackageFamilyName)!App"
+            $processes = @()
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              Start-Sleep -Seconds 1
+              $processes = @(Get-Process 'ScanItPrintIt Agent' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($package.InstallLocation, [StringComparison]::OrdinalIgnoreCase) })
+              if ($processes | Where-Object MainWindowHandle -ne 0) { break }
+            }
+            if (!($processes | Where-Object MainWindowHandle -ne 0)) { throw 'The installed Store app did not open its window.' }
+            Write-Host "Opened the installed app under $($package.PackageFamilyName)."
+          } finally {
+            $processes | Stop-Process -Force -ErrorAction SilentlyContinue
+            Remove-AppxPackage -Package $package.PackageFullName
+          }
+      - name: Keep Store package and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScanItPrintIt-Store-submission
+          path: |
+            electron-app/dist/windows-store/*.appx
+            electron-app/windows-store-results
+          retention-days: 14
+          if-no-files-found: error

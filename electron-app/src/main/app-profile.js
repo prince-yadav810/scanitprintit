@@ -3,7 +3,14 @@ const path = require('node:path');
 
 // Electron's instance lock is scoped to userData. Support must choose its own
 // profile before requesting that lock, otherwise an older agent gets focused.
-function configureAppProfile(app, support) {
+function configureAppProfile(app, support, storePackage = false) {
+  if (storePackage) {
+    const directory = path.join(app.getPath('appData'), 'ScanItPrintIt Store');
+    fs.mkdirSync(directory, { recursive: true });
+    app.setPath('userData', directory);
+    app.setPath('sessionData', directory);
+    return { support: false, installedDirectories: [] };
+  }
   const installedDirectory = app.getPath('userData');
   if (!support) return { support: false, installedDirectories: [] };
 

@@ -7,6 +7,7 @@ const { once } = require('node:events');
 
 const archive = path.resolve(process.argv[2] || '.');
 const output = process.argv[3];
+const storePackage = process.argv[4] === 'store';
 app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'sip-trial-entry-')));
 app.disableHardwareAcceleration();
 app.on('window-all-closed', () => {});
@@ -19,8 +20,8 @@ let approved = false;
 let trial = { endsAt: new Date(Date.now() + 259_200_000).toISOString(), convertedAt: null };
 const view = () => ({ ...trial, serverTime: Date.now() });
 
-ipcMain.handle('updater:getVersion', () => '1.1.12');
-ipcMain.handle('auth:getState', () => ({ paired, canResumeTrial: trialStarted, diagnosticsOnly: false }));
+ipcMain.handle('updater:getVersion', () => require(path.join(archive, 'package.json')).version);
+ipcMain.handle('auth:getState', () => ({ paired, canResumeTrial: trialStarted, diagnosticsOnly: false, storePackage }));
 ipcMain.handle('auth:trial', (_, details) => {
   received.push(details);
   trialStarted = true;
@@ -55,7 +56,7 @@ async function until(window, code) {
 }
 
 app.whenReady().then(async () => {
-  const window = new BrowserWindow({ show: false, width: 960, height: 660,
+  const window = new BrowserWindow({ show: false, width: 1440, height: 900,
     webPreferences: { preload: path.join(archive, 'src/main/preload.js'), contextIsolation: true, nodeIntegration: false } });
   await window.loadFile(path.join(archive, 'src/renderer/index.html'));
   await until(window, "document.getElementById('pair-screen').style.display === 'flex'");
@@ -68,6 +69,8 @@ app.whenReady().then(async () => {
   await until(window, "document.getElementById('trial-countdown').textContent.includes('3 days left')");
   assert.deepEqual(received, [{ shopName: 'Trial Copy Centre', phone: '9000000012' }]);
   await until(window, `document.getElementById('sidebar-shop-name').textContent === ${JSON.stringify(shop.name)}`);
+  assert.equal(await window.webContents.executeJavaScript("getComputedStyle(document.getElementById('btn-check-update')).display === 'none'"), storePackage);
+  assert.equal(await window.webContents.executeJavaScript("getComputedStyle(document.getElementById('startup-toggle')).display === 'none'"), storePackage);
   if (output) fs.writeFileSync(output, (await window.webContents.capturePage()).toPNG());
   await until(window, "document.querySelector('#queue-list').textContent.includes('Approve print')");
   await window.webContents.executeJavaScript("document.querySelector('#queue-list .btn-primary').click()");

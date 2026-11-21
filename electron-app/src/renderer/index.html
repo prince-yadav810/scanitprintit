@@ -166,6 +166,7 @@
     .qr-preview { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: inline-block; }
     .qr-preview img { display: block; width: 224px; max-width: 100%; height: auto; }
     .agent-sign-out { text-align: left; width: 100%; }
+    #startup-toggle[hidden], #startup-settings[hidden], #btn-check-update[hidden], #store-updates-description[hidden] { display: none; }
     .filters { display: flex; gap: 10px; flex-wrap: wrap; }
     .filters input, .filters select { width: auto; }
     .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
@@ -454,7 +455,8 @@
               </div>
               <div class="settings-row">
                 <div><div class="settings-label">Auto-launch on Windows Startup</div><div class="settings-desc">Start the agent automatically when you log in</div></div>
-                <label class="toggle"><input type="checkbox" id="toggle-autolaunch"><div class="toggle-slider"></div></label>
+                <label class="toggle" id="startup-toggle"><input type="checkbox" id="toggle-autolaunch"><div class="toggle-slider"></div></label>
+                <button type="button" class="btn" id="startup-settings" hidden onclick="window.api.openStartupApps()">Open Windows settings</button>
               </div>
             </div>
           </div>
@@ -486,6 +488,7 @@
               <div class="card-title" style="margin:0;">Software Update</div>
               <button class="btn btn-sm btn-primary" id="btn-check-update" onclick="checkForUpdates()">🔍 Check for Updates</button>
             </div>
+            <p class="settings-desc" id="store-updates-description" hidden>Microsoft Store delivers updates for this app.</p>
             <div class="settings-section">
               <div class="settings-row">
                 <div><div class="settings-label">Current Version</div><div class="settings-desc" id="current-version">Loading...</div></div>
@@ -1250,6 +1253,10 @@ async function init() {
     document.getElementById('current-version').textContent = `v${version}`;
   } catch {}
   const auth = await window.api.getAuthState();
+  document.getElementById('startup-toggle').hidden = !!auth.storePackage;
+  document.getElementById('startup-settings').hidden = !auth.storePackage;
+  document.getElementById('btn-check-update').hidden = !!auth.storePackage;
+  document.getElementById('store-updates-description').hidden = !auth.storePackage;
   if (auth.diagnosticsOnly) {
     document.title = `ScanItPrintIt Support v${version}`;
     document.getElementById('support-build-label').textContent = `ScanItPrintIt Support v${version}`;

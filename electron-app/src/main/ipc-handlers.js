@@ -13,7 +13,7 @@ const { getPrinterSnapshot } = require('./windows-printer');
 const { describePrinter } = require('./printer-health');
 
 module.exports = {
-  register(ipcMain, store, mainWindow) {
+  register(ipcMain, store, mainWindow, { storePackage = false } = {}) {
     let posterCache;
     async function getShopPoster() {
       const token = store.get('token');
@@ -51,6 +51,7 @@ module.exports = {
         paired: !!store.get('token'),
         canResumeTrial: !!store.get('trialActivationKey'),
         diagnosticsOnly: agent.isDiagnosticsOnly(),
+        storePackage,
         shopName: store.get('shopName'),
         shopSlug: store.get('shopSlug'),
         shopId:   store.get('shopId'),
@@ -130,7 +131,7 @@ module.exports = {
         selectedPrinter:    store.get('selectedPrinter', null),
         soundEnabled:       store.get('soundEnabled', false),
         printerHealthEnabled: store.get('printerHealthEnabled', true),
-        autoLaunch:         !agent.isDiagnosticsOnly() && store.get('autoLaunch', true),
+        autoLaunch:         !storePackage && !agent.isDiagnosticsOnly() && store.get('autoLaunch', true),
       };
     });
 
@@ -147,7 +148,7 @@ module.exports = {
       if ('selectedPrinter' in settings) store.set('selectedPrinter', settings.selectedPrinter);
       if ('soundEnabled' in settings)    store.set('soundEnabled', settings.soundEnabled);
       if ('printerHealthEnabled' in settings) store.set('printerHealthEnabled', settings.printerHealthEnabled);
-      if ('autoLaunch' in settings && !agent.isDiagnosticsOnly()) {
+      if ('autoLaunch' in settings && !storePackage && !agent.isDiagnosticsOnly()) {
         store.set('autoLaunch', settings.autoLaunch);
         const { app } = require('electron');
         app.setLoginItemSettings({ openAtLogin: settings.autoLaunch });
@@ -158,6 +159,10 @@ module.exports = {
         return await agent.saveSettings(settings.remote);
       }
       return { success: true };
+    });
+
+    ipcMain.handle('settings:openStartupApps', () => {
+      if (storePackage) return shell.openExternal('ms-settings:startupapps');
     });
 
     ipcMain.handle('settings:printerHealth', async () => {

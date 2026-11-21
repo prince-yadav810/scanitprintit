@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('api', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   getRemoteSettings: () => ipcRenderer.invoke('settings:getRemote'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
+  openStartupApps: () => ipcRenderer.invoke('settings:openStartupApps'),
   getPrinters: () => ipcRenderer.invoke('settings:getPrinters'),
   getPrinterHealth: () => ipcRenderer.invoke('settings:printerHealth'),
   getQrCode: () => ipcRenderer.invoke('settings:getQrCode'),
