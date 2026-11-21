@@ -4,7 +4,7 @@ const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { load, settle } = require('./helpers.cjs');
 
-async function setup({ locked = true, printing = false, support = false, verifyRenderer = async () => ({ success: true }) } = {}) {
+async function setup({ locked = true, printing = false, support = false, storePackage = false, verifyRenderer = async () => ({ success: true }) } = {}) {
   const windows = [];
   const handlers = new Map();
   const counters = { starts: 0, stops: 0, installed: 0, quit: 0, exited: 0, loginItems: 0 };
@@ -44,7 +44,7 @@ async function setup({ locked = true, printing = false, support = false, verifyR
   const updater = Object.assign(new EventEmitter(), {
     checkForUpdates: async () => {}, quitAndInstall() { counters.installed++; },
   });
-  const fakeProcess = Object.assign(new EventEmitter(), { platform: 'win32', argv: [], env: support ? { PORTABLE_EXECUTABLE_FILE: 'Support.exe' } : {} });
+  const fakeProcess = Object.assign(new EventEmitter(), { platform: 'win32', argv: [], windowsStore: storePackage, env: support ? { PORTABLE_EXECUTABLE_FILE: 'Support.exe' } : {} });
   load(path.resolve(__dirname, '../src/main/index.js'), {
     electron: { app, BrowserWindow: Window, Tray, Menu, ipcMain: { handle: (key, callback) => handlers.set(key, callback) }, nativeImage: { createFromPath() {}, createEmpty() {} }, dialog: { showErrorBox() {} } },
     'electron-store': class { get(_, fallback) { return fallback; } },
@@ -97,6 +97,16 @@ test('the standalone launcher enables support mode and does not register itself 
   assert.equal((await s.handlers.get('updater:check')()).success, false);
   const result = s.handlers.get('updater:install')();
   assert.equal(result.success, false); assert.match(result.error, /Support mode/);
+});
+
+test('the Store package starts the print agent and leaves update and startup management to Windows', async () => {
+  const s = await setup({ storePackage: true });
+  assert.equal(s.counters.starts, 1);
+  assert.equal(s.counters.loginItems, 0);
+  assert.equal(s.updater.autoDownload, false);
+  assert.equal(s.updater.autoInstallOnAppQuit, false);
+  assert.match((await s.handlers.get('updater:check')()).error, /Microsoft Store/);
+  assert.match(s.handlers.get('updater:install')().error, /Microsoft Store/);
 });
 
 test('close hides the dashboard; File Quit really exits after the current job', async () => {

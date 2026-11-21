@@ -14,6 +14,7 @@ async function main() {
       ...metadata.build,
       directories: { ...metadata.build.directories, output: 'dist/windows-store' },
       extraResources: [],
+      extraMetadata: { description: 'Desktop print agent and shop dashboard for ScanItPrintIt' },
       publish: null,
       appx: {
         ...storeIdentity,
