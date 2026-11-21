@@ -27,6 +27,7 @@ jobs:
           if ($LASTEXITCODE -eq 0 -or "$output" -notlike '*Set WINDOWS_SIGNING_THUMBPRINT and WINDOWS_SIGNING_PUBLISHER*') {
             throw "Missing signing identity returned an unexpected result: $output"
           }
+          exit 0
       - name: Validate a trusted signed fixture and reject a publisher mismatch
         working-directory: electron-app
         shell: pwsh
