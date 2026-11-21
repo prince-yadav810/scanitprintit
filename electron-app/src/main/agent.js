@@ -508,6 +508,13 @@ module.exports = {
     return { success: true };
   },
 
+  async approveJob(orderId) {
+    const response = await apiFetch(`/agent/jobs/${encodeURIComponent(orderId)}/actions`, 'POST', { action: 'approve' });
+    const data = response.json();
+    if (response.status !== 200 || !data.success) return { success: false, error: data.error || 'Could not approve the order.' };
+    return { success: true };
+  },
+
   async cancelJob(orderId) {
     if (isPrinting) return { success: false, error: 'Wait for the current print job to finish.' };
     await syncPendingStatuses();

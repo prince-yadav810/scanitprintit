@@ -13,6 +13,7 @@ app.on('window-all-closed', () => {});
 const shop = { id: 'trial-qa', name: 'Trial Copy Centre', slug: 'trial-qa' };
 const received = [];
 let paired = false;
+let approved = false;
 let trial = { endsAt: new Date(Date.now() + 259_200_000).toISOString(), convertedAt: null };
 const view = () => ({ ...trial, serverTime: Date.now() });
 
@@ -26,7 +27,14 @@ ipcMain.handle('auth:trial', (_, details) => {
 ipcMain.handle('settings:get', () => ({ darkTheme: true }));
 ipcMain.handle('settings:printerHealth', () => ({ state: 'unknown', label: 'Printer status unavailable' }));
 ipcMain.handle('engine:status', () => ({ status: 'ready' }));
-ipcMain.handle('dashboard:get', () => ({ shop, trial: view(), today: {}, queue: [] }));
+ipcMain.handle('dashboard:get', () => ({ shop, trial: view(), today: {}, queue: approved ? [] : [
+  { id: 'sample-order', orderNumber: '00112233', status: 'AWAITING_APPROVAL', pageCount: 1, files: [{ originalName: 'sample.pdf' }] },
+] }));
+ipcMain.handle('queue:approve', (_, id) => {
+  assert.equal(id, 'sample-order');
+  approved = true;
+  return { success: true };
+});
 ipcMain.handle('stats:monthly', () => ({ dailyRevenue: [] }));
 ipcMain.handle('diagnostics:status', () => ({}));
 
@@ -54,6 +62,10 @@ app.whenReady().then(async () => {
   assert.deepEqual(received, [{ shopName: 'Trial Copy Centre', phone: '9000000012' }]);
   await until(window, `document.getElementById('sidebar-shop-name').textContent === ${JSON.stringify(shop.name)}`);
   if (output) fs.writeFileSync(output, (await window.webContents.capturePage()).toPNG());
+  await until(window, "document.querySelector('#queue-list').textContent.includes('Approve print')");
+  await window.webContents.executeJavaScript("document.querySelector('#queue-list .btn-primary').click()");
+  await until(window, "document.querySelector('#queue-list').textContent.includes('Queue is empty')");
+  assert.equal(approved, true);
   trial = { ...trial, endsAt: new Date(Date.now() - 1000).toISOString() };
   await window.webContents.executeJavaScript('loadDashboard()');
   await until(window, "document.getElementById('trial-countdown').textContent === 'Trial ended'");

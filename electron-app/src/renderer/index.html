@@ -786,7 +786,7 @@ function renderOrderTable(wrapperId, orders) {
     const isDanger = ['NEEDS_ATTENTION'].includes(o.status);
     const isCancelled = o.status.startsWith('CANCELLED');
     const style = isCancelled ? 'text-decoration:line-through; opacity:0.5;' : '';
-    const name = o.customerName ? `<span style="font-weight:600;color:var(--text-primary);">${o.customerName}</span>` : '<span style="color:var(--text-muted);">—</span>';
+    const name = o.customerName ? `<span style="font-weight:600;color:var(--text-primary);">${escapeHtml(o.customerName)}</span>` : '<span style="color:var(--text-muted);">—</span>';
     return `<tr class="${isDanger ? 'danger-row' : ''}" style="${style}">
       <td class="primary">#${o.orderNumber}</td>
       <td>${name}</td>
@@ -807,7 +807,7 @@ function renderOrderTable(wrapperId, orders) {
 function renderQueue(jobs) {
   const el = document.getElementById('queue-list');
   const badge = document.getElementById('nav-badge-queue');
-  const active = jobs.filter(j => ['PAID_QUEUED','PRINTING','NEEDS_ATTENTION'].includes(j.status));
+  const active = jobs.filter(j => ['AWAITING_APPROVAL','PAID_QUEUED','PRINTING','NEEDS_ATTENTION'].includes(j.status));
 
   if (!active.length) {
     el.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div>Queue is empty — no pending jobs</div>';
@@ -819,32 +819,46 @@ function renderQueue(jobs) {
   el.innerHTML = active.map(j => {
     const isPrinting = j.status === 'PRINTING';
     const isFailed = j.status === 'NEEDS_ATTENTION';
+    const needsApproval = j.status === 'AWAITING_APPROVAL';
     const isSim = j.status === 'SIMULATED_PRINTED' || j.simulationEnabled;
     const dotColor = isPrinting ? 'var(--accent)' : isFailed ? 'var(--danger)' : 'var(--info)';
     const modeChip = j.settings?.mode === 'COLOR'
       ? `<span class="queue-chip chip-color">Color</span>`
       : `<span class="queue-chip chip-bw">B&W</span>`;
     const simChip = isSim ? `<span class="queue-chip chip-sim">SIM</span>` : '';
-    const customerTag = j.customerName ? `<span style="font-size:11px;color:var(--accent);font-weight:600;">👤 ${j.customerName}</span>` : '';
+    const customerTag = j.customerName ? `<span style="font-size:11px;color:var(--accent);font-weight:600;">👤 ${escapeHtml(j.customerName)}</span>` : '';
     const failure = isFailed && state.diagnosticHistory.find(event => event.orderId === j.id && event.code === 'ATTEMPT_FAILED');
     return `<div class="queue-item ${isPrinting ? 'printing' : ''} ${isFailed ? 'failed' : ''} ${isSim ? 'simulated' : ''}">
       <div class="queue-status-dot" style="background:${dotColor};${isPrinting ? 'box-shadow:0 0 6px '+dotColor : ''}"></div>
       <div class="queue-info">
         <div class="queue-order">#${j.orderNumber} ${customerTag}</div>
-        <div class="queue-file">${j.files?.[0]?.originalName || 'Unknown file'}</div>
+        <div class="queue-file">${escapeHtml(j.files?.[0]?.originalName || 'Unknown file')}</div>
         ${failure ? `<div class="queue-file" style="color:var(--danger);">${escapeHtml(failure.stage)}: ${escapeHtml(failure.message)}</div>` : ''}
       </div>
       <div class="queue-meta">
         ${modeChip} ${simChip}
+        ${needsApproval ? '<span class="queue-chip badge-warning">Needs approval</span>' : ''}
         <span class="queue-chip chip-bw">${j.pageCount}p × ${j.settings?.copies||1}</span>
         <span class="queue-time">${timeAgo(j.createdAt)}</span>
       </div>
       <div class="queue-actions">
+        ${needsApproval ? `<button class="btn btn-sm btn-primary" onclick="approveJob('${j.id}', this)">Approve print</button>` : ''}
         ${isFailed ? `<button class="btn btn-sm btn-primary" onclick="retryJob('${j.id}')">Retry</button>` : ''}
         ${!isPrinting ? `<button class="btn btn-sm btn-danger" onclick="cancelJob('${j.id}')">Cancel</button>` : ''}
       </div>
     </div>`;
   }).join('');
+}
+
+async function approveJob(id, button) {
+  button.disabled = true;
+  try {
+    const result = await window.api.approveJob(id);
+    if (!result.success) { alert(result.error); return; }
+    await loadDashboard();
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function retryJob(id) {

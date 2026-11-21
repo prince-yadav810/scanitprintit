@@ -92,6 +92,10 @@ module.exports = {
     });
 
     // ── Queue Actions ─────────────────────────────────────────────────────────
+    ipcMain.handle('queue:approve', async (_, orderId) => {
+      try { return await agent.approveJob(orderId); }
+      catch (error) { return { success: false, error: error.message }; }
+    });
     ipcMain.handle('queue:retry', async (_, orderId) => {
       try { return await agent.retryJob(orderId); }
       catch (error) { return { success: false, error: error.message }; }

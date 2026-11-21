@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   getMonthlyStats: () => ipcRenderer.invoke('stats:monthly'),
 
   // ── Queue Actions ─────────────────────────────────────────────────────────
+  approveJob: (orderId) => ipcRenderer.invoke('queue:approve', orderId),
   retryJob: (orderId) => ipcRenderer.invoke('queue:retry', orderId),
   cancelJob: (orderId) => ipcRenderer.invoke('queue:cancel', orderId),
 
