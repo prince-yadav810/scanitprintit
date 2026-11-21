@@ -13,6 +13,7 @@ async function main() {
     config: {
       ...metadata.build,
       directories: { ...metadata.build.directories, output: 'dist/windows-store' },
+      extraResources: [],
       publish: null,
       appx: {
         ...storeIdentity,
