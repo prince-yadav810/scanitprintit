@@ -1,0 +1,71 @@
+name: Windows signature verification
+
+on:
+  push:
+    branches: [codex/windows-release-signing]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: electron-app
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Refuse a release without the certificate identity
+        working-directory: electron-app
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $output = node build/windows-release.cjs 2>&1
+          if ($LASTEXITCODE -eq 0 -or "$output" -notlike '*Set WINDOWS_SIGNING_THUMBPRINT and WINDOWS_SIGNING_PUBLISHER*') {
+            throw "Missing signing identity returned an unexpected result: $output"
+          }
+      - name: Validate a trusted signed fixture and reject a publisher mismatch
+        working-directory: electron-app
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'Sigcheck.zip'
+          $fixture = Join-Path $env:RUNNER_TEMP 'signature-fixture'
+          Invoke-WebRequest -Uri 'https://download.sysinternals.com/files/Sigcheck.zip' -OutFile $zip
+          Expand-Archive -LiteralPath $zip -DestinationPath $fixture
+          $exe = Join-Path $fixture 'sigcheck64.exe'
+          $thumbprint = (Get-AuthenticodeSignature -LiteralPath $exe).SignerCertificate.Thumbprint
+          $testApp = Join-Path $env:RUNNER_TEMP 'app fixture'
+          $testResources = Join-Path $testApp 'resources'
+          New-Item -ItemType Directory -Path $testResources | Out-Null
+          Copy-Item -LiteralPath $exe -Destination (Join-Path $testApp 'ScanItPrintIt Agent.exe')
+          Copy-Item -LiteralPath $exe -Destination (Join-Path $testResources 'fixture.dll')
+          & ./build/verify-windows-release.ps1 -InstallerPath $exe -AppDirectory $testApp -PublisherName 'Microsoft Corporation' -CertificateThumbprint $thumbprint
+          $rejected = $false
+          try {
+            & ./build/verify-windows-release.ps1 -InstallerPath $exe -PublisherName 'Wrong Publisher'
+          } catch {
+            if ($_.Exception.Message -notlike "*Expected 'Wrong Publisher'*") { throw }
+            $rejected = $true
+          }
+          if (!$rejected) { throw 'Verifier accepted a different publisher.' }
+      - name: Reject the exact public unsigned installer
+        working-directory: electron-app
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'ScanItPrintIt-Agent-Setup-1.1.12.exe'
+          Invoke-WebRequest -Uri 'https://github.com/prince-yadav810/scanitprintit/releases/download/agent-1.1.12/ScanItPrintIt-Agent-Setup-1.1.12.exe' -OutFile $installer -Headers @{ 'Cache-Control' = 'no-cache' }
+          $sha = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
+          if ($sha -ne 'f219b330792beae97b9a963d02af4ad231335ff5c697346d5798361076325f3e') {
+            throw "Unexpected installer digest: $sha"
+          }
+          $rejected = $false
+          try {
+            & ./build/verify-windows-release.ps1 -InstallerPath $installer
+          } catch {
+            if ($_.Exception.Message -notlike '*no valid embedded Authenticode signature (NotSigned)*') { throw }
+            $rejected = $true
+          }
+          if (!$rejected) { throw 'Verifier accepted an unsigned installer.' }
