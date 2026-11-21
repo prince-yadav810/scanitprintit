@@ -35,13 +35,18 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - name: Verify Store identity and archive
+        id: verify
         run: |
           $file = Get-ChildItem dist/windows-store -Filter '*.appx' -File
           if (@($file).Count -ne 1) { throw 'Expected one Store package.' }
           $expected = Get-Content build/store-identity.json -Raw | ConvertFrom-Json
           $metadata = Get-Content package.json -Raw | ConvertFrom-Json
           $root = Join-Path $env:RUNNER_TEMP 'appx-content'
-          [IO.Compression.ZipFile]::ExtractToDirectory($file.FullName, $root)
+          $sdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin'
+          $makeappx = Get-ChildItem -Path "$sdk/*/x64/makeappx.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          if (!$makeappx) { throw 'Windows SDK MakeAppx is missing.' }
+          & $makeappx.FullName unpack /p $file.FullName /d $root
+          if ($LASTEXITCODE -ne 0) { throw 'Could not unpack the Store package.' }
           [xml]$manifest = Get-Content (Join-Path $root 'AppxManifest.xml') -Raw
           $id = $manifest.Package.Identity
           if ($id.Name -cne $expected.identityName -or $id.Publisher -cne $expected.publisher -or $manifest.Package.Properties.PublisherDisplayName -cne $expected.publisherDisplayName -or $manifest.Package.Properties.DisplayName -cne $expected.displayName) { throw 'Package identity does not match Partner Center.' }
@@ -97,6 +102,7 @@ jobs:
             Remove-AppxPackage -Package $package.PackageFullName
           }
       - name: Keep Store package and evidence
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: ScanItPrintIt-Store-submission
