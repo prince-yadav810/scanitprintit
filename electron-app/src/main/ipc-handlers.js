@@ -7,7 +7,6 @@ const { shell, dialog } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
-const QRCode = require('qrcode');
 const agent = require('./agent');
 const { getDiagnostics } = require('./diagnostics');
 const { getPrinterSnapshot } = require('./windows-printer');
@@ -15,6 +14,23 @@ const { describePrinter } = require('./printer-health');
 
 module.exports = {
   register(ipcMain, store, mainWindow) {
+    let posterCache;
+    async function getShopPoster() {
+      const token = store.get('token');
+      const slug = store.get('shopSlug');
+      if (!token || !slug) throw new Error('Pair this device and load your shop before opening its poster.');
+      const url = new URL(`/s/${encodeURIComponent(slug)}/poster`, process.env.SCANITPRINTIT_API || 'https://www.scanitprintit.in');
+      if (posterCache?.url === url.href) return { slug, buffer: posterCache.buffer };
+
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok || !response.headers.get('content-type')?.startsWith('image/png')) {
+        throw new Error('Could not load the shop poster.');
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (store.get('token') !== token) throw new Error('The device signed out.');
+      posterCache = { url: url.href, buffer };
+      return { slug, buffer };
+    }
 
     // ── Auth ─────────────────────────────────────────────────────────────────
     ipcMain.handle('auth:pair', async (_, code) => {
@@ -24,14 +40,10 @@ module.exports = {
     ipcMain.handle('auth:trial', (_, details) => agent.startTrial(details));
     ipcMain.handle('trial:plans', () => shell.openExternal('https://www.scanitprintit.in/pricing'));
 
-    ipcMain.handle('auth:unpair', async () => {
-      if (agent.isPrinting()) {
-        return { success: false, error: 'A print job is in progress. Wait for it to finish before disconnecting.' };
-      }
-      store.delete('token');
-      store.delete('printedJobs');
-      getDiagnostics()?.reset();
-      return { success: true };
+    ipcMain.handle('auth:unpair', () => {
+      const result = agent.signOut();
+      if (result.success) posterCache = undefined;
+      return result;
     });
 
     ipcMain.handle('auth:getState', () => {
@@ -47,10 +59,11 @@ module.exports = {
 
     // ── Dashboard ─────────────────────────────────────────────────────────────
     ipcMain.handle('dashboard:get', async () => {
+      const token = store.get('token');
       try {
         const data = await agent.getDashboard();
         // Cache for offline use
-        if (data.success !== false) {
+        if (token && store.get('token') === token && data.success !== false) {
           store.set('dashboardCache', { data, cachedAt: Date.now() });
           // Also persist shop info
           if (data.shop) {
@@ -62,7 +75,7 @@ module.exports = {
         return data;
       } catch (err) {
         // Return cached data on failure
-        const cache = store.get('dashboardCache');
+        const cache = token && store.get('token') === token && store.get('dashboardCache');
         if (cache) {
           return { ...cache.data, _cached: true, _cachedAt: cache.cachedAt };
         }
@@ -72,12 +85,13 @@ module.exports = {
 
     // ── History ───────────────────────────────────────────────────────────────
     ipcMain.handle('history:get', async (_, filters) => {
+      const token = store.get('token');
       try {
         const data = await agent.getHistory(filters);
-        store.set('historyCache', { data, cachedAt: Date.now() });
+        if (token && store.get('token') === token) store.set('historyCache', { data, cachedAt: Date.now() });
         return data;
       } catch {
-        const cache = store.get('historyCache');
+        const cache = token && store.get('token') === token && store.get('historyCache');
         if (cache) return { ...cache.data, _cached: true, _cachedAt: cache.cachedAt };
         throw new Error('Offline and no cached data available.');
       }
@@ -167,31 +181,29 @@ module.exports = {
     });
 
     ipcMain.handle('settings:getQrCode', async () => {
-      const slug = store.get('shopSlug');
-      if (!slug) return { success: false, error: 'Not paired yet.' };
-      const url = `https://www.scanitprintit.in/s/${slug}`;
-      const dataUrl = await QRCode.toDataURL(url, { margin: 2, scale: 12, color: { dark: '#1a1915', light: '#ffffff' } });
-      return { success: true, dataUrl, url };
+      try {
+        const { buffer } = await getShopPoster();
+        return { success: true, dataUrl: `data:image/png;base64,${buffer.toString('base64')}` };
+      } catch {
+        return { success: false, error: 'Could not load the QR poster. Check your connection and try again.' };
+      }
     });
 
     ipcMain.handle('settings:downloadQrCode', async () => {
-      const slug = store.get('shopSlug');
-      if (!slug) return { success: false, error: 'Not paired yet.' };
-      const url = `https://www.scanitprintit.in/s/${slug}`;
-      const dataUrl = await QRCode.toDataURL(url, { margin: 2, scale: 20, color: { dark: '#1a1915', light: '#ffffff' } });
-
-      // Convert data URL to buffer and save
-      const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
-      const { filePath } = await dialog.showSaveDialog(mainWindow, {
-        defaultPath: path.join(os.homedir(), 'Desktop', `scanitprintit-qr-${slug}.png`),
-        filters: [{ name: 'PNG Image', extensions: ['png'] }],
-      });
-      if (filePath) {
-        fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+      try {
+        const { slug, buffer } = await getShopPoster();
+        const filename = `scanitprintit-qr-${slug.replace(/[^a-z0-9_-]/gi, '-')}.png`;
+        const { filePath } = await dialog.showSaveDialog(mainWindow, {
+          defaultPath: path.join(os.homedir(), 'Desktop', filename),
+          filters: [{ name: 'PNG Image', extensions: ['png'] }],
+        });
+        if (!filePath) return { success: false, cancelled: true };
+        await fs.promises.writeFile(filePath, buffer);
         shell.showItemInFolder(filePath);
         return { success: true };
+      } catch {
+        return { success: false, error: 'Could not save the QR poster. Check your connection and try again.' };
       }
-      return { success: false, error: 'Cancelled' };
     });
 
     // ── CSV Export ────────────────────────────────────────────────────────────

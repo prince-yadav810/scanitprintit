@@ -164,6 +164,8 @@
     .section-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
     .offline-banner { background: var(--warning-bg); border: 1px solid rgba(245,158,11,0.3); border-radius: var(--radius-sm); padding: 8px 14px; font-size: 12px; color: var(--warning); display: flex; align-items: center; gap: 8px; }
     .qr-preview { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: inline-block; }
+    .qr-preview img { display: block; width: 224px; max-width: 100%; height: auto; }
+    .agent-sign-out { text-align: left; width: 100%; }
     .filters { display: flex; gap: 10px; flex-wrap: wrap; }
     .filters input, .filters select { width: auto; }
     .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
@@ -255,7 +257,9 @@
             <span class="nav-icon">⚙️</span> Settings
           </div>
         </nav>
-        </nav>
+        <div style="padding: 8px 14px;">
+          <button id="sidebar-sign-out" class="btn agent-sign-out" onclick="doSignOut(this)">Sign out</button>
+        </div>
         <div class="sidebar-bottom" style="padding: 16px 14px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--border); margin-top: auto; background: var(--bg-subtle);">
           <div style="display: flex; align-items: flex-start; gap: 8px;">
             <div class="dot" id="dot-internet" title="Internet" style="margin-top: 3px; flex-shrink: 0;"></div>
@@ -382,9 +386,10 @@
                 <div><div class="settings-label" id="set-shop-name">—</div><div class="settings-desc" id="set-shop-url">—</div></div>
               </div>
               <div class="settings-row" style="flex-direction:column; align-items:flex-start; gap:12px;">
-                <div class="settings-label">Shop QR Code</div>
+                <div class="settings-label">Scan to print poster</div>
                 <div id="qr-preview-wrap"></div>
-                <button class="btn" onclick="downloadQr()">⬇ Download QR Code (PNG)</button>
+                <button id="qr-download" class="btn" onclick="downloadQr()">Download poster (PNG)</button>
+                <span id="qr-status" class="settings-desc" role="status"></span>
               </div>
             </div>
           </div>
@@ -470,7 +475,7 @@
                 <span id="diagnostic-status" class="settings-desc">Checking…</span>
               </div>
               <div style="padding:0 4px;">
-                <button class="btn btn-danger" onclick="doUnpair()">Disconnect & Re-pair</button>
+                <button id="settings-sign-out" class="btn btn-danger" onclick="doSignOut(this)">Sign out</button>
               </div>
             </div>
           </div>
@@ -619,11 +624,23 @@ function showPairError(msg) {
   el.textContent = msg; el.hidden = false;
 }
 
-async function doUnpair() {
-  if (!confirm('Disconnect this device? You will need to re-pair.')) return;
-  const result = await window.api.unpair();
-  if (!result.success) { alert(result.error); return; }
-  showPairingRequired('Pair this device to resume receiving orders.');
+async function doSignOut(button) {
+  if (!confirm('Sign out of this shop? This device will stop receiving orders until you pair it again or resume your trial.')) return;
+  const buttons = [document.getElementById('sidebar-sign-out'), document.getElementById('settings-sign-out')];
+  buttons.forEach(item => { item.disabled = true; });
+  button.textContent = 'Signing out…';
+  try {
+    const result = await window.api.unpair();
+    if (result.success) {
+      window.location.reload();
+      return;
+    }
+    alert(result.error);
+  } catch {
+    alert('Could not sign out. Please try again.');
+  }
+  buttons.forEach(item => { item.disabled = false; });
+  button.textContent = 'Sign out';
 }
 
 // ─── Status Bar ──────────────────────────────────────────────────────────────
@@ -959,11 +976,7 @@ async function loadSettings() {
   document.getElementById('set-shop-name').textContent = auth.shopName || '—';
   document.getElementById('set-shop-url').textContent = shopUrl;
 
-  // QR preview
-  const qr = await window.api.getQrCode();
-  if (qr.success) {
-    document.getElementById('qr-preview-wrap').innerHTML = `<div class="qr-preview"><img src="${qr.dataUrl}" style="width:160px;height:160px;display:block;"></div>`;
-  }
+  void loadQrPoster();
 
   // Installed printers are configuration choices, not connection checks.
   const ps = await window.api.getPrinters();
@@ -1063,8 +1076,42 @@ function playNotificationBeep() {
   } catch (e) { console.warn('Audio error:', e); }
 }
 
+async function loadQrPoster() {
+  const wrap = document.getElementById('qr-preview-wrap');
+  const status = document.getElementById('qr-status');
+  status.textContent = 'Loading poster…';
+  try {
+    const qr = await window.api.getQrCode();
+    if (!qr.success) {
+      wrap.replaceChildren();
+      status.textContent = qr.error;
+      return;
+    }
+    const preview = document.createElement('div');
+    preview.className = 'qr-preview';
+    const image = document.createElement('img');
+    image.src = qr.dataUrl;
+    image.alt = 'Scan to print poster for this shop';
+    preview.appendChild(image);
+    wrap.replaceChildren(preview);
+    status.textContent = '';
+  } catch {
+    status.textContent = 'Could not load the QR poster.';
+  }
+}
+
 async function downloadQr() {
-  await window.api.downloadQrCode();
+  const button = document.getElementById('qr-download');
+  const status = document.getElementById('qr-status');
+  button.disabled = true;
+  try {
+    const result = await window.api.downloadQrCode();
+    status.textContent = result.success ? 'Poster saved.' : result.cancelled ? '' : result.error;
+  } catch {
+    status.textContent = 'Could not save the QR poster.';
+  } finally {
+    button.disabled = false;
+  }
 }
 
 // ─── Alert Log ────────────────────────────────────────────────────────────────

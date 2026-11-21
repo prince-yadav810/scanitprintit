@@ -145,6 +145,53 @@ test('rejected pairing credentials stop claims and emit a persistent pairing tra
   s.agent.stop();
 });
 
+test('signing out clears the local shop but keeps printer preferences and trial recovery', async () => {
+  const s = setup({ saved: {
+    token: 'paired-token',
+    shopId: 'shop-1',
+    shopName: 'Copy centre',
+    shopSlug: 'copy-centre',
+    dashboardCache: { data: { shop: {} } },
+    historyCache: { data: { orders: [] } },
+    selectedPrinter: 'Canon',
+    trialActivationKey: 'trial-key',
+  } });
+  assert.equal(s.agent.signOut().success, true);
+  for (const key of ['token', 'shopId', 'shopName', 'shopSlug', 'dashboardCache', 'historyCache']) {
+    assert.equal(s.data[key], undefined);
+  }
+  assert.equal(s.data.selectedPrinter, 'Canon');
+  assert.equal(s.data.trialActivationKey, 'trial-key');
+  await s.poll();
+  assert.equal(s.prints, 0);
+  assert.equal(s.statuses.length, 0);
+  s.agent.stop();
+});
+
+test('signing out waits for a print and preserves its result until it syncs', async () => {
+  let completePrint;
+  let offline = true;
+  const s = setup({
+    print: () => new Promise(resolve => { completePrint = resolve; }),
+    syncFails: () => offline,
+  });
+  const poll = s.poll();
+  await settle();
+  assert.equal(s.prints, 1);
+  assert.equal(s.agent.signOut().success, false);
+  completePrint();
+  await poll;
+  assert.equal(s.data.pendingStatuses['order-1'].status, 'PRINTED');
+  assert.equal(s.agent.signOut().success, false);
+  assert.equal(s.data.token, 'paired-token');
+  offline = false;
+  await s.poll();
+  assert.equal(s.state, 'PRINTED');
+  assert.equal(s.agent.signOut().success, true);
+  assert.equal(s.prints, 1);
+  s.agent.stop();
+});
+
 test('download failure updates the server to NEEDS_ATTENTION and releases the job', async () => {
   const s = setup({ downloadFails: true });
   await s.poll();

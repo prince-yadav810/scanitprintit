@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { app, BrowserWindow, ipcMain } = require('electron');
+const { once } = require('node:events');
 
 const archive = path.resolve(process.argv[2] || '.');
 const output = process.argv[3];
@@ -13,16 +14,22 @@ app.on('window-all-closed', () => {});
 const shop = { id: 'trial-qa', name: 'Trial Copy Centre', slug: 'trial-qa' };
 const received = [];
 let paired = false;
+let trialStarted = false;
 let approved = false;
 let trial = { endsAt: new Date(Date.now() + 259_200_000).toISOString(), convertedAt: null };
 const view = () => ({ ...trial, serverTime: Date.now() });
 
 ipcMain.handle('updater:getVersion', () => '1.1.12');
-ipcMain.handle('auth:getState', () => ({ paired, diagnosticsOnly: false }));
+ipcMain.handle('auth:getState', () => ({ paired, canResumeTrial: trialStarted, diagnosticsOnly: false }));
 ipcMain.handle('auth:trial', (_, details) => {
   received.push(details);
+  trialStarted = true;
   paired = true;
   return { success: true, trial: view() };
+});
+ipcMain.handle('auth:unpair', () => {
+  paired = false;
+  return { success: true };
 });
 ipcMain.handle('settings:get', () => ({ darkTheme: true }));
 ipcMain.handle('settings:printerHealth', () => ({ state: 'unknown', label: 'Printer status unavailable' }));
@@ -72,7 +79,17 @@ app.whenReady().then(async () => {
   trial = { ...trial, convertedAt: new Date().toISOString() };
   await window.webContents.executeJavaScript('loadDashboard()');
   await until(window, "document.getElementById('trial-banner').hidden");
-  console.log('Packaged trial form, three-day countdown, expiry and paid conversion passed.');
+  const pairingScreen = once(window.webContents, 'did-finish-load');
+  await window.webContents.executeJavaScript(`
+    window.confirm = () => true;
+    setTimeout(() => document.getElementById('sidebar-sign-out').click());
+  `);
+  await pairingScreen;
+  await until(window, "document.getElementById('pair-screen').style.display === 'flex'");
+  assert.equal(paired, false);
+  assert.equal(await window.webContents.executeJavaScript("document.getElementById('trial-resume').hidden"), false);
+  assert.equal(await window.webContents.executeJavaScript("document.getElementById('main-app').style.display"), 'none');
+  console.log('Packaged trial entry, print approval, countdown, conversion and sign-out passed.');
   app.exit(0);
 }).catch(error => {
   console.error(error);

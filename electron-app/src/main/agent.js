@@ -395,6 +395,18 @@ module.exports = {
   },
   isDiagnosticsOnly() { return diagnosticsOnly; },
 
+  signOut() {
+    if (isPrinting || isPolling) {
+      return { success: false, error: 'Wait for the current print or queue check to finish, then try again.' };
+    }
+    if (Object.keys(store?.get('pendingStatuses', {}) || {}).length) {
+      return { success: false, error: 'An order result is still syncing. Reconnect and let it finish before signing out.' };
+    }
+    store?.delete('token');
+    clearShopState();
+    return { success: true };
+  },
+
   getRendererReadiness() {
     return { ...rendererReadiness, diagnosticsOnly };
   },
@@ -460,9 +472,10 @@ module.exports = {
   },
 
   async getDashboard() {
+    const token = store?.get('token');
     const res  = await apiFetch('/owner/dashboard');
     if (res.status === 401) {
-      rejectPairing();
+      if (token && store?.get('token') === token) rejectPairing();
       throw new Error('Device pairing was rejected. Pair this device again.');
     }
     return res.json();
@@ -498,10 +511,13 @@ module.exports = {
 
   async retryJob(orderId) {
     if (isPrinting) return { success: false, error: 'Wait for the current print job to finish.' };
+    const token = store?.get('token');
     await syncPendingStatuses();
+    if (!token || store?.get('token') !== token) return { success: false, error: 'Pair this device to retry an order.' };
     if (store?.get('pendingStatuses', {})?.[orderId]) return { success: false, error: 'This job still has a status update waiting to sync. Try again when connected.' };
     const response = await apiFetch(`/agent/jobs/${encodeURIComponent(orderId)}/actions`, 'POST', { action: 'retry' });
     const data = response.json();
+    if (store?.get('token') !== token) return { success: false, error: 'The device signed out during the request.' };
     if (response.status !== 200 || !data.success) return { success: false, error: data.error || 'Could not requeue the order.' };
     store?.set('printedJobs', (store.get('printedJobs', []) || []).filter(id => id !== orderId));
     recordDiagnostic({ stage: 'recovery', code: 'RETRY_QUEUED', orderId, message: 'The operator requeued the order on the server' });
@@ -517,7 +533,9 @@ module.exports = {
 
   async cancelJob(orderId) {
     if (isPrinting) return { success: false, error: 'Wait for the current print job to finish.' };
+    const token = store?.get('token');
     await syncPendingStatuses();
+    if (!token || store?.get('token') !== token) return { success: false, error: 'Pair this device to cancel an order.' };
     if (store?.get('pendingStatuses', {})?.[orderId]) return { success: false, error: 'This job still has a status update waiting to sync. Try again when connected.' };
     const response = await apiFetch(`/agent/jobs/${encodeURIComponent(orderId)}/actions`, 'POST', { action: 'cancel' });
     const data = response.json();
