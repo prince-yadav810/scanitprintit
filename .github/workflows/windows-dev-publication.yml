@@ -1,0 +1,34 @@
+name: Publish tested Windows development installer
+
+on:
+  push:
+    branches: [codex/windows-dev-publication]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ScanItPrintIt-Agent-1.1.13-Windows-test
+          run-id: 44904678621
+          github-token: ${{ github.token }}
+          path: installer
+      - name: Publish the installer for development testing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          previous='installer/ScanItPrintIt Agent Setup 1.1.13.exe'
+          target='ScanItPrintIt-Agent-Dev-Setup-1.1.13.exe'
+          test -s "$previous"
+          mv "$previous" "$target"
+          sha256sum "$target" > SHA256SUMS.txt
+          tag='dev-agent-1.1.13'
+          notes='Unsigned installer for ScanItPrintIt development and compatibility testing. Contains agent sign-out and branded QR posters. Customer installations are distributed through the Microsoft Store after certification.'
+          gh release create "$tag" "$target" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target 3c92e1b --title 'ScanItPrintIt Agent 1.1.13 Development' --prerelease --latest=false --notes "$notes"
