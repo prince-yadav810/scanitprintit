@@ -5,6 +5,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   // ── Auth ──────────────────────────────────────────────────────────────────
   pair: (code) => ipcRenderer.invoke('auth:pair', code),
+  startTrial: (details) => ipcRenderer.invoke('auth:trial', details),
+  openTrialPlans: () => ipcRenderer.invoke('trial:plans'),
   unpair: () => ipcRenderer.invoke('auth:unpair'),
   getAuthState: () => ipcRenderer.invoke('auth:getState'),
 

@@ -1,0 +1,74 @@
+name: Windows Agent 1.1.12
+
+on:
+  push:
+    branches: [codex/agent-1.1.12]
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-stage:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: electron-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            electron-app
+            .github
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: electron-app/package-lock.json
+      - run: npm ci
+      - run: node node_modules/electron/install.js
+      - run: npm test
+      - name: Build Windows installer
+        run: npx electron-builder --win nsis --x64 --publish never '-c.directories.output=dist/windows-ci'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Test packaged Windows app
+        run: |
+          node tests/windows-executable-smoke.cjs 'dist/windows-ci/win-unpacked/ScanItPrintIt Agent.exe' windows-print-results/executable
+          if ($LASTEXITCODE -ne 0) { throw "Packaged startup failed: $LASTEXITCODE" }
+          $asar = 'dist/windows-ci/win-unpacked/resources/app.asar'
+          foreach ($mode in @('render', 'windows-discovery', 'startup', 'order-flow')) {
+            & .\node_modules\electron\dist\electron.exe tests/windows-packaged-smoke.cjs $asar $mode windows-print-results/candidate | Out-Default
+            if ($LASTEXITCODE -ne 0) { throw "$mode failed: $LASTEXITCODE" }
+          }
+      - name: Test trial entry and countdown
+        run: |
+          $asar = 'dist/windows-ci/win-unpacked/resources/app.asar'
+          & .\node_modules\electron\dist\electron.exe tests/windows-trial-entry.cjs $asar windows-print-results/trial-dashboard.png | Out-Default
+          if ($LASTEXITCODE -ne 0) { throw "Trial entry test failed: $LASTEXITCODE" }
+      - name: Keep test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-trial-results
+          path: electron-app/windows-print-results
+          if-no-files-found: warn
+      - name: Verify installer and stage draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($version -ne '1.1.12') { throw "Unexpected version $version" }
+          $installer = Get-ChildItem 'dist/windows-ci' -Filter '*.exe' | Select-Object -First 1
+          if (!$installer) { throw 'Installer missing' }
+          $sha = [Convert]::ToBase64String([Security.Cryptography.SHA512]::HashData([IO.File]::ReadAllBytes($installer.FullName)))
+          if (!(Get-Content 'dist/windows-ci/latest.yml' -Raw).Contains($sha)) { throw 'Installer metadata checksum mismatch' }
+          $name = 'ScanItPrintIt-Agent-Setup-1.1.12.exe'
+          $target = Join-Path $env:RUNNER_TEMP $name
+          Copy-Item $installer.FullName $target
+          $checksum = (Get-FileHash $target -Algorithm SHA256).Hash.ToLower()
+          "$checksum  $name" | Set-Content (Join-Path $env:RUNNER_TEMP 'SHA256SUMS.txt')
+          gh release create 'agent-1.1.12' $target (Join-Path $env:RUNNER_TEMP 'SHA256SUMS.txt') --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'ScanItPrintIt Agent 1.1.12' --draft --prerelease --notes 'Supports large print files by timing out stalled transfers while keeping progressing downloads open. Retrieves a fresh private download link for each file. Windows packaged startup and print workflow checks passed.'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not stage the release' }
+          Write-Host "Verified installer SHA-256: $checksum"

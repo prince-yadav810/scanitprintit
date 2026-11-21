@@ -21,6 +21,8 @@ module.exports = {
       const result = await agent.pair(code);
       return result;
     });
+    ipcMain.handle('auth:trial', (_, details) => agent.startTrial(details));
+    ipcMain.handle('trial:plans', () => shell.openExternal('https://www.scanitprintit.in/pricing'));
 
     ipcMain.handle('auth:unpair', async () => {
       if (agent.isPrinting()) {
@@ -35,6 +37,7 @@ module.exports = {
     ipcMain.handle('auth:getState', () => {
       return {
         paired: !!store.get('token'),
+        canResumeTrial: !!store.get('trialActivationKey'),
         diagnosticsOnly: agent.isDiagnosticsOnly(),
         shopName: store.get('shopName'),
         shopSlug: store.get('shopSlug'),

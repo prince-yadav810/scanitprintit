@@ -35,6 +35,13 @@ function rejectPairing() {
   emit?.('agent:event', { type: 'unpaired', message: 'Device pairing was rejected. Generate a new pairing code in your shop dashboard.' });
 }
 
+function clearShopState() {
+  for (const key of ['dashboardCache', 'historyCache', 'monthlyStatsCache', 'shopId', 'shopName', 'shopSlug', 'activePrintAttempt']) store?.delete(key);
+  store?.set('printedJobs', []);
+  store?.set('pendingStatuses', {});
+  getDiagnostics()?.reset();
+}
+
 // ─── API Helpers ─────────────────────────────────────────────────────────────
 function apiFetch(endpoint, method = 'GET', body = null) {
   const token   = store?.get('token');
@@ -411,15 +418,44 @@ module.exports = {
       const res  = await apiFetch('/agent/pair', 'POST', { code: code.trim() });
       const data = res.json();
       if (data.success) {
-        getDiagnostics()?.reset();
+        clearShopState();
         store?.set('token', data.token);
-        store?.set('printedJobs', []);
-        store?.set('pendingStatuses', {});
         return { success: true };
       }
       return { success: false, error: data.error };
     } catch (err) {
       return { success: false, error: err.message };
+    }
+  },
+
+  async startTrial(details) {
+    if (diagnosticsOnly) return { success: false, error: 'Open the installed shop app to start a trial.' };
+    if (!store || store.get('token')) return { success: false, error: 'This app is already paired.' };
+    const resume = details?.resume === true;
+    const originalKey = store.get('trialActivationKey');
+    if (resume && !originalKey) return { success: false, error: 'Enter your shop details to start a trial.' };
+    try {
+      const key = originalKey || crypto.randomBytes(32).toString('hex');
+      if (!originalKey) store.set('trialActivationKey', key);
+      const payload = resume ? { key, resume } : {
+        key,
+        shopName: typeof details?.shopName === 'string' ? details.shopName.trim().slice(0, 100) : '',
+        phone: typeof details?.phone === 'string' ? details.phone.trim().slice(0, 28) : '',
+      };
+      const res = await apiFetch('/agent/trial', 'POST', payload);
+      const data = res.json();
+      if (res.status !== 200 || !data.success || typeof data.token !== 'string' || !data.shop?.id) {
+        return { success: false, error: data.error || 'Could not start the trial. Please try again.' };
+      }
+      if (data.shop.id !== store.get('trialShopId')) clearShopState();
+      store.set('token', data.token);
+      store.set('trialShopId', data.shop.id);
+      store.set('shopId', data.shop.id);
+      store.set('shopName', data.shop.name);
+      store.set('shopSlug', data.shop.slug);
+      return { success: true, trial: data.trial };
+    } catch {
+      return { success: false, error: 'Could not reach the trial service. Check your connection and try again.' };
     }
   },
 

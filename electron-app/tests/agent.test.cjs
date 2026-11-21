@@ -28,6 +28,7 @@ function setup(options = {}) {
       req.destroy = () => {};
       req.end = () => queueMicrotask(() => {
         let result = { status: 200, data: { success: true } };
+        if (config.path === '/api/agent/trial' && options.trialRequest) result = options.trialRequest(body);
         if (config.path === '/api/agent/jobs') {
           options.onJobsRequest?.();
           if (options.tokenRejected) result = { status: 401, data: { error: 'Invalid token' } };
@@ -301,5 +302,28 @@ test('standalone support mode never polls customer jobs but still allows a direc
   assert.equal(s.intervals.has(5000), false);
   assert.equal((await s.agent.printTestPage()).success, true);
   assert.equal(s.statuses.length, 0);
+  s.agent.stop();
+});
+
+test('trial activation retries with the same private key and shares only countdown metadata with the renderer', async () => {
+  const requests = [];
+  const trial = { endsAt: '2026-11-24T08:00:00Z', serverTime: 1 };
+  const s = setup({ saved: {}, trialRequest: body => {
+    requests.push(body);
+    if (requests.length === 1) return { status: 503, data: { error: 'Retry' } };
+    return { status: 200, data: { success: true, token: 'new-token', shop: { id:'trial-shop', name: 'Trial shop', slug: 'trial-shop-1' }, trial } };
+  } });
+  const fields = { shopName: ' Trial shop ', phone: '9000000012' };
+  assert.equal((await s.agent.startTrial(fields)).success, false);
+  const result = await s.agent.startTrial(fields);
+  assert.equal(result.success, true);
+  assert.equal(result.trial.endsAt, trial.endsAt);
+  assert.equal(result.token, undefined);
+  assert.equal(s.data.token, 'new-token');
+  assert.equal(s.data.shopId, 'trial-shop');
+  assert.match(requests[0].key, /^[a-f0-9]{64}$/);
+  assert.equal(requests[0].key, requests[1].key);
+  assert.equal(requests[1].shopName, 'Trial shop');
+  assert.equal(requests[1].phone, '9000000012');
   s.agent.stop();
 });
