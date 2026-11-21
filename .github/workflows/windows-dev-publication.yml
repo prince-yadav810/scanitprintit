@@ -31,4 +31,4 @@ jobs:
           sha256sum "$target" > SHA256SUMS.txt
           tag='dev-agent-1.1.13'
           notes='Unsigned installer for ScanItPrintIt development and compatibility testing. Contains agent sign-out and branded QR posters. Customer installations are distributed through the Microsoft Store after certification.'
-          gh release create "$tag" "$target" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target 3c92e1b --title 'ScanItPrintIt Agent 1.1.13 Development' --prerelease --latest=false --notes "$notes"
+          gh release create "$tag" "$target" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target 3c92e1b1adc2ce7c25f4f24db16ecc25ba8c231e --title 'ScanItPrintIt Agent 1.1.13 Development' --prerelease --latest=false --notes "$notes"
