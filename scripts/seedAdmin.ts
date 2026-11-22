@@ -3,10 +3,9 @@ import bcrypt from 'bcrypt';
 
 async function main() {
   const username = 'admin';
-  const rawPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'password123';
-  
-  if (rawPassword === 'password123') {
-    console.warn('⚠️ WARNING: Using default password "password123". Please set DEFAULT_ADMIN_PASSWORD in your environment variables for production.');
+  const rawPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+  if (!rawPassword || rawPassword.length < 16 || Buffer.byteLength(rawPassword) > 72) {
+    throw new Error('Set DEFAULT_ADMIN_PASSWORD to a new password with at least 16 characters and at most 72 bytes.');
   }
 
   const password = await bcrypt.hash(rawPassword, 10);
