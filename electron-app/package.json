@@ -1,6 +1,6 @@
 {
   "name": "scanitprintit-agent",
-  "version": "1.1.13",
+  "version": "1.1.14",
   "description": "ScanItPrintIt Shop Owner Dashboard & Print Agent",
   "main": "src/main/index.js",
   "author": "ScanItPrintIt",
@@ -20,7 +20,7 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "electron": "44.7.0",
+    "electron": "44.11.5",
     "electron-builder": "^24.13.3"
   },
   "build": {

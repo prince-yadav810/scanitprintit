@@ -56,3 +56,5 @@ product_docs/
 # Misc scripts
 scripts/testAudit.mjs
 railway.json
+
+/vercel-env.txt

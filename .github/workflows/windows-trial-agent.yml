@@ -1,8 +1,9 @@
-name: Windows Agent 1.1.13
+name: Windows Agent 1.1.14
 
 on:
   push:
-    branches: [codex/agent-1.1.13]
+    branches: [codex/agent-security-1.1.14]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -57,7 +58,7 @@ jobs:
       - name: Verify test installer checksum
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          if ($version -ne '1.1.13') { throw "Unexpected version $version" }
+          if ($version -ne '1.1.14') { throw "Unexpected version $version" }
           $installer = Get-ChildItem 'dist/windows-ci' -Filter '*.exe' | Select-Object -First 1
           if (!$installer) { throw 'Installer missing' }
           $sha = [Convert]::ToBase64String([Security.Cryptography.SHA512]::HashData([IO.File]::ReadAllBytes($installer.FullName)))
@@ -68,7 +69,34 @@ jobs:
       - name: Keep installer for test laptop
         uses: actions/upload-artifact@v4
         with:
-          name: ScanItPrintIt-Agent-1.1.13-Windows-test
+          name: ScanItPrintIt-Agent-1.1.14-Windows-test
           path: electron-app/dist/windows-ci/*.exe
           retention-days: 7
           if-no-files-found: error
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ScanItPrintIt-Agent-1.1.14-Windows-test
+          path: installer
+      - name: Publish tested development installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          source='installer/ScanItPrintIt Agent Setup 1.1.14.exe'
+          target='ScanItPrintIt-Agent-Dev-Setup-1.1.14.exe'
+          test -s "$source"
+          mv "$source" "$target"
+          sha256sum "$target" > SHA256SUMS.txt
+          tag='dev-agent-1.1.14'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists."
+            exit 1
+          fi
+          gh release create "$tag" "$target" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'ScanItPrintIt Agent 1.1.14 Development' --prerelease --latest=false --notes 'Windows development installer with the updated Electron security runtime. This installer is unsigned.'
