@@ -56,3 +56,6 @@ product_docs/
 # Misc scripts
 scripts/testAudit.mjs
 railway.json
+
+# Local environment exports
+/vercel-env.txt
