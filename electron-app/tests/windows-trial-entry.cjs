@@ -59,14 +59,33 @@ app.whenReady().then(async () => {
     webPreferences: { preload: path.join(archive, 'src/main/preload.js'), contextIsolation: true, nodeIntegration: false } });
   await window.loadFile(path.join(archive, 'src/renderer/index.html'));
   await until(window, "document.getElementById('pair-screen').style.display === 'flex'");
-  await window.webContents.executeJavaScript(`
+  assert.equal(await window.webContents.executeJavaScript(`
     document.querySelector('#trial-options button').click();
     document.getElementById('trial-name').value = 'Trial Copy Centre';
     document.getElementById('trial-phone').value = '9000000012';
+    document.getElementById('trial-form').checkValidity();
+  `), false);
+  assert.equal(await window.webContents.executeJavaScript(`
+    document.getElementById('trial-upi').value = 'trial@examplebank';
+    document.getElementById('trial-form').checkValidity();
+  `), true);
+  assert.equal(await window.webContents.executeJavaScript(`
+    document.getElementById('trial-payout-method').value = 'bank';
+    document.getElementById('trial-payout-method').dispatchEvent(new Event('change'));
+    document.getElementById('trial-form').checkValidity();
+  `), false);
+  await window.webContents.executeJavaScript(`
+    document.getElementById('trial-account-holder').value = 'Trial Copy Centre';
+    document.getElementById('trial-account-number').value = '000001234567';
+    document.getElementById('trial-ifsc').value = 'TEST0123456';
     document.getElementById('trial-form').requestSubmit();
   `);
   await until(window, "document.getElementById('trial-countdown').textContent.includes('3 days left')");
-  assert.deepEqual(received, [{ shopName: 'Trial Copy Centre', phone: '9000000012' }]);
+  assert.deepEqual(received, [{
+    shopName: 'Trial Copy Centre', phone: '9000000012',
+    payout: { method: 'bank', accountHolder: 'Trial Copy Centre', accountNumber: '000001234567', ifsc: 'TEST0123456' },
+  }]);
+  assert.equal(await window.webContents.executeJavaScript("document.getElementById('trial-account-number').value"), '');
   await until(window, `document.getElementById('sidebar-shop-name').textContent === ${JSON.stringify(shop.name)}`);
   if (output) fs.writeFileSync(output, (await window.webContents.capturePage()).toPNG());
   await until(window, "document.querySelector('#queue-list').textContent.includes('Approve print')");

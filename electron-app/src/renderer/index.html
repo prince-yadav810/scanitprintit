@@ -152,6 +152,8 @@
     .trial-inputs { display: grid; gap: 12px; text-align: left; margin: 16px 0; }
     .trial-inputs label { display: grid; gap: 5px; font-weight: 600; }
     .trial-inputs input { min-height: 40px; }
+    .trial-inputs select { min-height: 40px; }
+    .trial-bank { display: grid; gap: 12px; }
     .trial-inputs input:focus { border-color: #d97757; }
     .btn-trial { color: #23150f; border-color: #d97757; background: #d97757; font-weight: 700; }
     .btn-trial:hover { color: #23150f; background: #e58c6f; }
@@ -195,6 +197,17 @@
         <div class="trial-inputs">
           <label>Shop name<input type="text" id="trial-name" maxlength="100" minlength="2" autocomplete="organization" required></label>
           <label>Mobile number<input type="tel" id="trial-phone" maxlength="28" autocomplete="tel" placeholder="+91 or 10-digit mobile number" required></label>
+          <label>Payout method<select id="trial-payout-method" onchange="showTrialPayoutMethod()">
+            <option value="upi">UPI ID</option>
+            <option value="bank">Bank account</option>
+          </select></label>
+          <label id="trial-upi-fields">UPI ID<input type="text" id="trial-upi" maxlength="100" placeholder="name@bank" autocomplete="off" required></label>
+          <div id="trial-bank-fields" class="trial-bank" hidden>
+            <label>Account holder name<input type="text" id="trial-account-holder" minlength="2" maxlength="100" autocomplete="off" required disabled></label>
+            <label>Account number<input type="text" id="trial-account-number" inputmode="numeric" pattern="[0-9]{6,20}" maxlength="20" autocomplete="off" required disabled></label>
+            <label>IFSC code<input type="text" id="trial-ifsc" pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" maxlength="11" autocomplete="off" required disabled></label>
+          </div>
+          <p class="pair-sub" style="margin:0">Enter the account where your shop should receive payouts.</p>
         </div>
         <button class="btn btn-trial btn-full" id="trial-btn">Start free trial</button>
         <button class="btn btn-full" type="button" onclick="showTrialForm(false)" style="margin-top:8px;">I have a pairing code</button>
@@ -611,12 +624,35 @@ async function doPair() {
 }
 
 async function doTrial(resume = false) {
+  const method = document.getElementById('trial-payout-method').value;
   const info = resume ? { resume } : {
     shopName: document.getElementById('trial-name').value,
     phone: document.getElementById('trial-phone').value,
+    payout: method === 'bank' ? {
+      method,
+      accountHolder: document.getElementById('trial-account-holder').value,
+      accountNumber: document.getElementById('trial-account-number').value,
+      ifsc: document.getElementById('trial-ifsc').value,
+    } : { method, upiId: document.getElementById('trial-upi').value },
   };
   const button = document.getElementById(resume ? 'trial-resume' : 'trial-btn');
-  await submitAccess(button, resume ? 'Reconnecting…' : 'Starting trial…', () => window.api.startTrial(info));
+  await submitAccess(button, resume ? 'Reconnecting…' : 'Starting trial…', async () => {
+    const result = await window.api.startTrial(info);
+    if (result.success && !resume) {
+      document.getElementById('trial-form').reset();
+      showTrialPayoutMethod();
+    }
+    return result;
+  });
+}
+
+function showTrialPayoutMethod() {
+  const useBank = document.getElementById('trial-payout-method').value === 'bank';
+  document.getElementById('trial-upi-fields').hidden = useBank;
+  document.getElementById('trial-upi').disabled = useBank;
+  const bankFields = document.getElementById('trial-bank-fields');
+  bankFields.hidden = !useBank;
+  for (const input of bankFields.querySelectorAll('input')) input.disabled = !useBank;
 }
 
 function showPairError(msg) {
