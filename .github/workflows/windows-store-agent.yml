@@ -2,7 +2,7 @@ name: Windows Store package
 
 on:
   push:
-    branches: [codex/store-agent-1.1.13]
+    branches: [codex/store-agent-trial-payout-1.1.15]
   workflow_dispatch:
 
 permissions:

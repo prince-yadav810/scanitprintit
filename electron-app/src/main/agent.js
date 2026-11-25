@@ -453,6 +453,7 @@ module.exports = {
         key,
         shopName: typeof details?.shopName === 'string' ? details.shopName.trim().slice(0, 100) : '',
         phone: typeof details?.phone === 'string' ? details.phone.trim().slice(0, 28) : '',
+        payout: details?.payout,
       };
       const res = await apiFetch('/agent/trial', 'POST', payload);
       const data = res.json();

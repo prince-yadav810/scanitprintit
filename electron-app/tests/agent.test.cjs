@@ -360,7 +360,8 @@ test('trial activation retries with the same private key and shares only countdo
     if (requests.length === 1) return { status: 503, data: { error: 'Retry' } };
     return { status: 200, data: { success: true, token: 'new-token', shop: { id:'trial-shop', name: 'Trial shop', slug: 'trial-shop-1' }, trial } };
   } });
-  const fields = { shopName: ' Trial shop ', phone: '9000000012' };
+  const payout = { method: 'upi', upiId: 'trial@examplebank' };
+  const fields = { shopName: ' Trial shop ', phone: '9000000012', payout };
   assert.equal((await s.agent.startTrial(fields)).success, false);
   const result = await s.agent.startTrial(fields);
   assert.equal(result.success, true);
@@ -372,5 +373,8 @@ test('trial activation retries with the same private key and shares only countdo
   assert.equal(requests[0].key, requests[1].key);
   assert.equal(requests[1].shopName, 'Trial shop');
   assert.equal(requests[1].phone, '9000000012');
+  assert.deepEqual(requests[1].payout, payout);
+  assert.equal(result.payout, undefined);
+  assert.equal(JSON.stringify(s.data).includes(payout.upiId), false);
   s.agent.stop();
 });
